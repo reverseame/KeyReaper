@@ -2,7 +2,6 @@
 #define PROGRAMRESULT_H
 
 class ProgramResult {
-
  private:
   ResultType type;
   string info;

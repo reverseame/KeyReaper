@@ -2,7 +2,6 @@
 #define KEYSCANNER_H
 
 class KeyScanner {
-
  private:
   int windowSize;
   list keys;

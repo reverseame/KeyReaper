@@ -2,7 +2,6 @@
 #define PROCESSCAPTURER_H
 
 class ProcessCapturer {
-
  private:
   DWORD pid;
   int suspendThreadPtr;
@@ -10,7 +9,8 @@ class ProcessCapturer {
 
  public:
   /**
-   * The PID is used for determining whether the process is Wow64 or not (which impacts the SuspendThread call)
+   * The PID is used for determining whether the process is Wow64 or not (which
+   * impacts the SuspendThread call)
    */
   ProcessCapturer(int pid);
 
