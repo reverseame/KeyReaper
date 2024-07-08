@@ -23,9 +23,7 @@ rm C:\Program Files\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\
 
 ## Compilar
 ```powershell
-cd build
-cmake ..
-cmake --build .
-cd bin/Debug
+.\configure.bat
+cd build/bin/Debug
 .\test.exe
 ```
