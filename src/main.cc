@@ -1,4 +1,4 @@
-// Compilar con: cl /EHsc /std:c++17 .\cifrar.cpp User32.lib
+// Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
 
 #include <Windows.h>
 #include <iostream>
