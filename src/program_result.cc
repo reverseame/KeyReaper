@@ -1,7 +1,7 @@
 #include "program_result.h"
 
 ProgramResult::ProgramResult(ResultType type, const string info) 
-  : result_type_(type), info_(info) {}
+    : result_type_(type), info_(info) {}
 
 bool ProgramResult::IsOk()
 {
