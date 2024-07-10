@@ -30,10 +30,11 @@ int main(int argc, char *argv[]) {
 
   ProcessCapturer cp = ProcessCapturer(pid);
 
-  if (cp.IsRunning()) {
+  if (cp.IsProcessAlive()) {
     cout << "Running" << endl;
   } else {
     printf("Not running\n");
+    return -1;
   }
   ProgramResult pr = cp.PauseProcess();
     
