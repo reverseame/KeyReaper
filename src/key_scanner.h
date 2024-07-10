@@ -1,5 +1,6 @@
 #ifndef KEYSCANNER_H
 #define KEYSCANNER_H
+#include <Windows.h>
 
 class KeyScanner {
  private:
