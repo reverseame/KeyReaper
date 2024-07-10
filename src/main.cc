@@ -29,6 +29,12 @@ int main(int argc, char *argv[]) {
   //MessageBox(NULL, message, caption, MB_OK);
 
   ProcessCapturer cp = ProcessCapturer(pid);
+
+  if (cp.IsRunning()) {
+    cout << "Running" << endl;
+  } else {
+    printf("Not running\n");
+  }
   ProgramResult pr = cp.PauseProcess();
     
   if (pr.IsOk()) {

@@ -6,11 +6,9 @@
 #include "process_capturer.h"
 
 
-ProcessCapturer::ProcessCapturer(int pid) {
+ProcessCapturer::ProcessCapturer(int pid) 
+    : pid_(pid) {
   
-  pid_ = pid;
-  suspended_ = false;
-
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
 
@@ -20,6 +18,8 @@ ProcessCapturer::ProcessCapturer(int pid) {
  * Warning! This function does not check the state of the process.
 */
 ProgramResult ProcessCapturer::PauseProcess() {
+
+  if (IsProcessAlive())
 
   if (suspended_) {
     return ProgramResult(ProgramResult::ResultType::kError, "Process was already suspended");
@@ -91,6 +91,30 @@ void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
 bool ProcessCapturer::IsSuspended() {
   // TODO - implement ProcessCapturer::isSuspended
   throw "Not yet implemented";
+}
+
+/**
+ * Determines if the process is alive (not killed), independently of
+ * the status (paused or running)
+*/
+bool ProcessCapturer::IsProcessAlive() {
+  bool active = false;
+  HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION ,
+  FALSE, pid_);
+
+  if (process_handle == NULL) {
+    return false;
+
+  } else {
+    DWORD exit_code;
+    bool res = GetExitCodeProcess(process_handle, &exit_code);
+    if (res != 0 && exit_code == STILL_ACTIVE) {
+      active = true;
+    }
+
+    CloseHandle(process_handle);
+    return active;
+  }
 }
 
 ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, char* buffer) {

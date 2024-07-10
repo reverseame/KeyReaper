@@ -9,6 +9,7 @@ using namespace std;
 class ProgramResult {
  public:
   enum class ResultType { kError, kWarning, kOk };
+  
   ProgramResult(ResultType type, const string info);
   bool IsOk();
   string GetResultInformation();
