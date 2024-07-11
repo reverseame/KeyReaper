@@ -44,8 +44,8 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   int n_threads = 0;
   do {
-    printf(" [%i]\r", ++n_threads);
     if (thread_entry.th32OwnerProcessID == pid_) {
+      printf(" [%i]\r", ++n_threads);
       HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_entry.th32ThreadID);
       if (thread_handle == NULL) {
         return ProgramResult(ProgramResult::ResultType::kError, THREAD_OPEN_ERR_MSG);
@@ -102,23 +102,20 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
 
   int n_threads = 0;
   do {
-    printf(" [%i]\r", ++n_threads);
-
     if (thread_entry.th32OwnerProcessID == pid_) {
+      printf("[%i] Reducing to zero the number of pauses\n", ++n_threads);
+
       HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_entry.th32ThreadID);
       if (thread_handle == NULL) {
         return ProgramResult(ProgramResult::ResultType::kError, THREAD_OPEN_ERR_MSG);
       }
 
-      printf("Reducing to zero the number of pauses");
       DWORD suspension_count;
       do {
-        suspension_count = ResumeThread(thread_handle);
+        suspension_count = ResumeThread(thread_handle) - 1; // ResumeThread returns the PREVIOUS pause count
         if (suspension_count == (DWORD) - 1) { // TODO include exact number in error text with a formatter
-        return ProgramResult(ProgramResult::ResultType::kError, THREAD_RESUME_ERR_MSG);
-      }
-      printf("[%i] Suspend count: %i\n", n_threads, --suspension_count);
-
+          return ProgramResult(ProgramResult::ResultType::kError, THREAD_RESUME_ERR_MSG);
+        }
       } while (suspension_count > 0);
       
       bool closed = CloseHandle(thread_handle);
