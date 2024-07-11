@@ -9,15 +9,13 @@ namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
     : pid_(pid) {
+  suspended_ = false;
   
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
 
 }
 
-/**
- * Warning! This function does not check the state of the process.
-*/
 ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   if (!IsProcessAlive()) {
