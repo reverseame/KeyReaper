@@ -1,17 +1,22 @@
 // Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
 #include <Windows.h>
-#include <iostream>
+
 #include <Intsafe.h>
+#include <string>
+#include <iostream>
 
 #include "process_capturer.h"
 #include "program_result.h"
 
 using namespace process_manipulation;
+using namespace error_handling;
+using namespace std;
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+  if (argc != 3) {
     cout << "[x] Argument number mismatch" << endl;
     cout << "    1) PID of the process" << endl;
+    cout << "    2) Action to perform [resume, pause, kill]" << endl;
     return -1;
   }
 
@@ -32,19 +37,13 @@ int main(int argc, char *argv[]) {
 
   ProcessCapturer cp = ProcessCapturer(pid);
 
-  if (cp.IsProcessAlive()) {
-    cout << "Running" << endl;
-  } else {
-    printf("Not running\n");
-    return -1;
-  }
-  ProgramResult pr = cp.PauseProcess();
-    
-  if (pr.IsOk()) {
-    cout << "Process successfully paused" << endl;
-  } else {
-    cout << "Could not pause process" << endl;
-  }
+  char option = argv[2][0];
+  ProgramResult pr = 
+      (option == 'r') ? cp.ResumeProcess(true) : 
+      (option == 'p') ? cp.PauseProcess(true) : 
+      (option == 'k') ? cp.KillProcess() : 
+      ProgramResult::ProgramResult(ProgramResult::ResultType::kError, "Invalid option");
+  
   cout << pr.GetResultInformation() << endl;
 
   return 0;

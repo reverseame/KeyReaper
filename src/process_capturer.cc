@@ -4,12 +4,12 @@
 #pragma comment(lib, "Kernel32.lib")
 
 #include "process_capturer.h"
+using namespace error_handling;
 
 namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
-    : pid_(pid) {
-  suspended_ = false;
+    : pid_(pid), suspended_(false) {
   
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
@@ -19,125 +19,134 @@ ProcessCapturer::ProcessCapturer(int pid)
 ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   if (!IsProcessAlive()) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Process is not alive");
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
   }
 
-  if (!force_pause && suspended_) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Process was already suspended");
+  if (!force_pause && IsSuspended()) {
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_SUSP_ERR_MSG);
   }
 
   printf("[i] Creating process snapshot\n");
   HANDLE handle_thread_snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (handle_thread_snap == INVALID_HANDLE_VALUE) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Could not create a snapshot of the threads");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_ERR_MSG);
   }
 
   THREADENTRY32 thread_entry; 
   thread_entry.dwSize = sizeof(THREADENTRY32);
   BOOL copied = Thread32First(handle_thread_snap, &thread_entry);
   if (!copied) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Could not copy the first thread entry");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_FIRST_ERR_MSG);
   }
   if (GetLastError() == ERROR_NO_MORE_FILES) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Did not find any thread information in the snapshot");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_NO_INFO_ERR_MSG);
   }
 
   int n_threads = 0;
   do {
     printf(" [%i]\r", ++n_threads);
     if (thread_entry.th32OwnerProcessID == pid_) {
-      HANDLE thread_handle = OpenThread(THREAD_ALL_ACCESS, FALSE, thread_entry.th32ThreadID);
+      HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_entry.th32ThreadID);
       if (thread_handle == NULL) {
-        return ProgramResult(ProgramResult::ResultType::kError, "Could not open thread");
+        return ProgramResult(ProgramResult::ResultType::kError, THREAD_OPEN_ERR_MSG);
       }
             
       DWORD suspension_count = SuspendThread(thread_handle);
       if (suspension_count == (DWORD) - 1) { // TODO include exact number in error text with a formatter
-        return ProgramResult(ProgramResult::ResultType::kError, "Thread reached its maximum number of suspensions");
+        return ProgramResult(ProgramResult::ResultType::kError, THEAD_MAX_SUS_COUNT_ERR_MSG);
       }
-      printf("[%i] Reamining suspensions: %i\n", n_threads, suspension_count);
+      printf("[%i] Suspend count: %i\n", n_threads, suspension_count + 1);
 
       bool closed = CloseHandle(thread_handle);
       if (!closed) {
-        return ProgramResult(ProgramResult::ResultType::kError, "Could not close handle to thread");
+        return ProgramResult(ProgramResult::ResultType::kError, THREAD_CLOSE_ERR_MSG);
       }
     }
   } while (Thread32Next(handle_thread_snap, &thread_entry));
 
     bool closed = CloseHandle(handle_thread_snap);
     if (!closed) {
-      return ProgramResult(ProgramResult::ResultType::kError, "Could not close handle to process");
+      return ProgramResult(ProgramResult::ResultType::kError, PROC_CLOSE_ERR_MSG);
     }
 
+    suspended_ = true;
     return ProgramResult(ProgramResult::ResultType::kOk, "All process' threads paused");
-    
 }
 
 ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
+  printf("Resuming process\n");
+
   if (!IsProcessAlive()) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Process is not alive");
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
   }
 
-  if (!force_resume && !suspended_) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Process is still running");
+  if (!force_resume && !IsSuspended()) {
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_STILL_RUN_ERR_MSG);
   }
 
-    printf("[i] Creating process snapshot\n");
+  printf("[i] Creating process snapshot\n");
   HANDLE handle_thread_snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (handle_thread_snap == INVALID_HANDLE_VALUE) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Could not create a snapshot of the threads");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_ERR_MSG);
   }
 
   THREADENTRY32 thread_entry;
   thread_entry.dwSize = sizeof(THREADENTRY32);
   BOOL copied = Thread32First(handle_thread_snap, &thread_entry);
   if (!copied) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Could not copy the first thread entry");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_FIRST_ERR_MSG);
   }
   if (GetLastError() == ERROR_NO_MORE_FILES) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Did not find any thread information in the snapshot");
+    return ProgramResult(ProgramResult::ResultType::kError, THREAD_SNAP_NO_INFO_ERR_MSG);
   }
 
   int n_threads = 0;
   do {
     printf(" [%i]\r", ++n_threads);
+
     if (thread_entry.th32OwnerProcessID == pid_) {
-      HANDLE thread_handle = OpenThread(THREAD_ALL_ACCESS, FALSE, thread_entry.th32ThreadID);
+      HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_entry.th32ThreadID);
       if (thread_handle == NULL) {
-        return ProgramResult(ProgramResult::ResultType::kError, "Could not open thread");
+        return ProgramResult(ProgramResult::ResultType::kError, THREAD_OPEN_ERR_MSG);
       }
 
-      DWORD suspension_count = ResumeThread(thread_handle);
-      if (suspension_count == (DWORD) - 1) { // TODO include exact number in error text with a formatter
-        return ProgramResult(ProgramResult::ResultType::kError, "Failed to resume the thread");
+      printf("Reducing to zero the number of pauses");
+      DWORD suspension_count;
+      do {
+        suspension_count = ResumeThread(thread_handle);
+        if (suspension_count == (DWORD) - 1) { // TODO include exact number in error text with a formatter
+        return ProgramResult(ProgramResult::ResultType::kError, THREAD_RESUME_ERR_MSG);
       }
-      printf("[%i] Reamining suspensions: %i\n", n_threads, suspension_count);
+      printf("[%i] Suspend count: %i\n", n_threads, --suspension_count);
 
+      } while (suspension_count > 0);
+      
       bool closed = CloseHandle(thread_handle);
       if (!closed) {
-        return ProgramResult(ProgramResult::ResultType::kError, "Could not close handle to thread");
+        return ProgramResult(ProgramResult::ResultType::kError, THREAD_CLOSE_ERR_MSG);
       }
     }
   } while (Thread32Next(handle_thread_snap, &thread_entry));
 
     bool closed = CloseHandle(handle_thread_snap);
     if (!closed) {
-      return ProgramResult(ProgramResult::ResultType::kError, "Could not close handle to process");
+      return ProgramResult(ProgramResult::ResultType::kError, PROC_CLOSE_ERR_MSG);
     }
 
+    suspended_ = false;
     return ProgramResult(ProgramResult::ResultType::kOk, "All process' threads resumed");
 }
 
 ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 
   if (!IsProcessAlive()) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Process is not running");
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
   }
 
   HANDLE proc_handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid_);
 
   if (proc_handle == NULL) {
-    return ProgramResult(ProgramResult::ResultType::kError, "Could not open the process");
+    return ProgramResult(ProgramResult::ResultType::kError, PROC_OPEN_ERR_MSG);
   }
 
   bool success = TerminateProcess(proc_handle, exit_code);
@@ -151,10 +160,6 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
   // TODO - implement ProcessCapturer::setSuspendPtr
   throw "Not yet implemented";
-}
-
-bool ProcessCapturer::IsSuspended() {
-  return suspended_;
 }
 
 /**
@@ -183,6 +188,10 @@ bool ProcessCapturer::IsProcessAlive() {
 ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, char* buffer) {
   // TODO - implement ProcessCapturer::getMemoryChunk
   throw "Not yet implemented";
+}
+
+bool ProcessCapturer::IsSuspended() {
+  return suspended_;
 }
 
 DWORD ProcessCapturer::GetPid() {

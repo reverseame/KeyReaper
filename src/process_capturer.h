@@ -3,7 +3,6 @@
 #include <Windows.h>
 
 #include "program_result.h"
-using namespace error_handling;
 
 typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
@@ -15,9 +14,9 @@ class ProcessCapturer {
   ProcessCapturer(int pid);
 
   // Process manipulation interface
-  ProgramResult PauseProcess(bool force_pause = false);
-  ProgramResult ResumeProcess(bool force_resume = false);
-  ProgramResult KillProcess(UINT exit_code = 0);
+  error_handling::ProgramResult PauseProcess(bool force_pause = false);
+  error_handling::ProgramResult ResumeProcess(bool force_resume = false);
+  error_handling::ProgramResult KillProcess(UINT exit_code = 0);
 
   // Query
   DWORD GetPid();
@@ -25,7 +24,7 @@ class ProcessCapturer {
   bool IsProcessAlive();
 
   // Memory stealing
-  ProgramResult GetMemoryChunk(int start, int size, char* buffer);
+  error_handling::ProgramResult GetMemoryChunk(int start, int size, char* buffer);
 
  private:
  // TODO: review
@@ -33,7 +32,7 @@ class ProcessCapturer {
 
   DWORD pid_;
   ThreadSuspendFunction suspendThreadPtr_;
-  bool suspended_;
+  int suspended_;
 
 };
 
