@@ -4,7 +4,9 @@
 #include <string>
 using namespace std;
 
-#define MAX_INFO_MSG_SIZE 256
+namespace error_handling {
+
+#define THREAD_ERR_MSG "Could not open thread"
 
 class ProgramResult {
  public:
@@ -18,5 +20,7 @@ class ProgramResult {
   ResultType result_type_;
   string info_;
 };
+
+}
 
 #endif

@@ -1,5 +1,7 @@
 #include "program_result.h"
 
+namespace error_handling {
+
 ProgramResult::ProgramResult(ResultType type, const string info) 
     : result_type_(type), info_(info) {}
 
@@ -15,3 +17,4 @@ string ProgramResult::GetResultInformation() {
     return info_;
 }
 
+} // namespace error_handling
