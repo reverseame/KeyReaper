@@ -6,6 +6,8 @@
 #include "process_capturer.h"
 #include "program_result.h"
 
+using namespace process_manipulation;
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     cout << "[x] Argument number mismatch" << endl;
@@ -19,7 +21,7 @@ int main(int argc, char *argv[]) {
   bool err = IntToDWord(int_pid, &pid);
 
   if (err) {
-    cout << "Could not convert pid to DWORD: " << err<< endl;
+    cout << "Could not convert pid to DWORD: " << err << endl;
     return -1;
   }
   cout << "[i] Capturing PID: " << pid << endl;

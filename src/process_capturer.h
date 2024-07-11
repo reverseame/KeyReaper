@@ -6,8 +6,9 @@
 
 typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
-class ProcessCapturer {
+namespace process_manipulation {
 
+class ProcessCapturer {
  public:
   // Constructors
   ProcessCapturer(int pid);
@@ -34,5 +35,7 @@ class ProcessCapturer {
   bool suspended_;
 
 };
+
+} // namespace process_manipulation
 
 #endif

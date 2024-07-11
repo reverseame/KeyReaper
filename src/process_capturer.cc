@@ -5,6 +5,7 @@
 
 #include "process_capturer.h"
 
+namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
     : pid_(pid) {
@@ -19,7 +20,9 @@ ProcessCapturer::ProcessCapturer(int pid)
 */
 ProgramResult ProcessCapturer::PauseProcess() {
 
-  if (IsProcessAlive())
+  if (!IsProcessAlive()) {
+    return ProgramResult(ProgramResult::ResultType::kError, "Process is not alive");
+  }
 
   if (suspended_) {
     return ProgramResult(ProgramResult::ResultType::kError, "Process was already suspended");
@@ -124,4 +127,6 @@ ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, char* buffer)
 
 DWORD ProcessCapturer::GetPid() {
   return pid_;
+}
+
 }
