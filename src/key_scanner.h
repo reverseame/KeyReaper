@@ -23,7 +23,7 @@ class KeyScanner {
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
 
   // Query
-  std::unordered_set<Key> GetKeys();
+  std::unordered_set<Key> DoScan();
 
  private:
   void AddKeys(std::unordered_set<Key> keys);

@@ -20,7 +20,11 @@ error_handling::ProgramResult KeyScanner::ResumeProcess(bool force_resume) {
     return capturer_.ResumeProcess(force_resume);
 }
 
-std::unordered_set<Key> KeyScanner::GetKeys() {
+std::unordered_set<Key> KeyScanner::DoScan() {
+
+    // Main functionality
+    // Capture memory and pass it to the analyzers
+
     return keys_;
 }
 
