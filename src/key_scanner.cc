@@ -1,63 +1,46 @@
-#include "KeyScanner.h"
+#include "key_scanner.h"
+#include <iostream>
 
-void KeyScanner::structureScan() {
-  // TODO - implement KeyScanner::structureScan
-  throw "Not yet implemented";
+using namespace std;
+
+namespace key_scanner {
+
+// Proxy method
+error_handling::ProgramResult KeyScanner::KillProcess(UINT exit_code) {
+  return capturer_.KillProcess(exit_code);
 }
 
-void KeyScanner::roundKeyScan() {
-  // TODO - implement KeyScanner::roundKeyScan
-  throw "Not yet implemented";
+// Proxy method
+error_handling::ProgramResult KeyScanner::PauseProcess(bool force_pause) {
+    return capturer_.PauseProcess(force_pause);
 }
 
-void KeyScanner::entropyScan() {
-  // TODO - implement KeyScanner::entropyScan
-  throw "Not yet implemented";
+// Proxy method
+error_handling::ProgramResult KeyScanner::ResumeProcess(bool force_resume) {
+    return capturer_.ResumeProcess(force_resume);
 }
 
-void KeyScanner::yaraScan() {
-  // TODO - implement KeyScanner::yaraScan
-  throw "Not yet implemented";
+std::unordered_set<Key> KeyScanner::GetKeys() {
+    return keys_;
 }
 
-void KeyScanner::addKeys(keys list) {
-  // TODO - implement KeyScanner::addKeys
-  throw "Not yet implemented";
+void KeyScanner::AddKeys(std::unordered_set<Key> keys) {
+  keys_.merge(keys);
 }
 
-list KeyScanner::getKeys() { return this->keys; }
-
-void KeyScanner::killProcess() {
-  // TODO - implement KeyScanner::killProcess
-  throw "Not yet implemented";
+KeyScanner::KeyScanner(int pid, unsigned int stride, std::vector<ScanStrategy> strategies, OnDestroyAction on_destroy) 
+    : pid_(pid), stride_(stride), strategies_(strategies), capturer_(pid), on_destroy_(on_destroy) { 
 }
 
-void KeyScanner::pauseProcess() {
-  // TODO - implement KeyScanner::pauseProcess
-  throw "Not yet implemented";
+KeyScanner::~KeyScanner() {
+
+  error_handling::ProgramResult pr = 
+    (on_destroy_ == OnDestroyAction::kKillProcess) ? capturer_.KillProcess() :
+    (on_destroy_ == OnDestroyAction::kPauseProcess) ? capturer_.PauseProcess() :
+    (on_destroy_ == OnDestroyAction::kResumeProcess) ? capturer_.ResumeProcess() :
+    error_handling::ProgramResult::ProgramResult(error_handling::ProgramResult::ResultType::kError, "Invalid destroy option");
+
+  cout << pr.GetResultInformation() << endl;
 }
 
-void KeyScanner::resumeProcess() {
-  // TODO - implement KeyScanner::resumeProcess
-  throw "Not yet implemented";
-}
-
-KeyScanner::KeyScanner(int pid) {
-  // TODO - implement KeyScanner::KeyScanner
-  throw "Not yet implemented";
-}
-
-void KeyScanner::DestroyAndKill() {
-  // TODO - implement KeyScanner::DestroyAndKill
-  throw "Not yet implemented";
-}
-
-void KeyScanner::DestroyAndResume() {
-  // TODO - implement KeyScanner::DestroyAndResume
-  throw "Not yet implemented";
-}
-
-void KeyScanner::DestroyAndKeepPaused() {
-  // TODO - implement KeyScanner::DestroyAndKeepPaused
-  throw "Not yet implemented";
-}
+} // namespace key_scanner
