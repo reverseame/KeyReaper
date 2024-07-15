@@ -52,8 +52,8 @@ class RoundKeyScan : ScanStrategy {
 
 enum class OnDestroyAction {
   kKillProcess,
-  kResumeProcess,
   kPauseProcess,
+  kResumeProcess,
 };
 
 } // namespace key_scanner
