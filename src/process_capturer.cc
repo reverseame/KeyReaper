@@ -215,39 +215,45 @@ ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, unsigned char
 ProgramResult ProcessCapturer::GetHeap(unsigned char *buffer) {
   printf("Getting heap\n");
 
-  /*HEAPLIST32 hl;
-   
-   HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
-   hl.dwSize = sizeof(HEAPLIST32);
-   
-   if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
-      printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
-      return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
-   }
-   
-   if( Heap32ListFirst(hHeapSnap, &hl)) {
+  HEAPLIST32 hl;
+  HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
+  hl.dwSize = sizeof(HEAPLIST32);
+
+  if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
+    printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
+    return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
+  }
+
+  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap captured successfully");
+
+  if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
       HEAPENTRY32 he;
       ZeroMemory(&he, sizeof(HEAPENTRY32));
       he.dwSize = sizeof(HEAPENTRY32);
 
-      if( Heap32First(&he, GetCurrentProcessId(), hl.th32HeapID )) {
+      if( Heap32First(&he, pid_, hl.th32HeapID )) {
         printf( "\nHeap ID: %d\n", hl.th32HeapID );
+        int base_address = he.dwAddress;
+        printf("Base address: 0x%p\n", base_address );
+        unsigned int total_size = 0;
         do {
-          printf( "Block size: %d\n", he.dwBlockSize );     
+          total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
-        } while( Heap32Next(&he) );
+        } while ( Heap32Next(&he) );
+        printf("Size of heap: %u\n", total_size);
+        printf("Final address: 0x%p\n", total_size -1 + base_address);
       }
       hl.dwSize = sizeof(HEAPLIST32);
-    } while (Heap32ListNext( hHeapSnap, &hl ));
-  }
-  else { 
+    } while (Heap32ListNext( hHeapSnap, &hl));
+  
+  } else { 
     printf ("Cannot list first heap (%d)\n", GetLastError());
+    func_result = ProgramResult(ResultType::kError, "Cannot list first heap");
   }
    
-   CloseHandle(hHeapSnap);*/
-  
-  return ProgramResult(ResultType::kOk, "Heap captured successfully");
+  CloseHandle(hHeapSnap);
+  return func_result;
 }
 
 bool ProcessCapturer::IsSuspended() {

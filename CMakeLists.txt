@@ -15,3 +15,7 @@ add_executable(test
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${SOURCE_BASE_DIR}/main.cc
 )
+
+add_executable(cifrar3 
+    ${SOURCE_BASE_DIR}/cifrar3.cpp
+)
