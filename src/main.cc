@@ -80,5 +80,11 @@ int main(int argc, char *argv[]) {
   
   cout << pr.GetResultInformation() << endl;
 
+  ProgramResult r = cp.GetHeap(NULL);
+  cout << r.GetResultInformation() << endl;
+  if (!r.IsOk()) {
+    PrintLastError(TEXT("GETHEAP"));
+  }
+
   return 0;
 }

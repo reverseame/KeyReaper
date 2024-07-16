@@ -21,7 +21,7 @@ namespace error_handling {
 
 class ProgramResult {
  public:
-  enum class ResultType { kError, kWarning, kOk };
+  enum class ResultType { kError, kOk };
   
   ProgramResult(ResultType type, const std::string info);
   bool IsOk();

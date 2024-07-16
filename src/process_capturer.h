@@ -24,7 +24,8 @@ class ProcessCapturer {
   bool IsProcessAlive();
 
   // Memory stealing
-  error_handling::ProgramResult GetMemoryChunk(int start, int size, char* buffer);
+  error_handling::ProgramResult GetMemoryChunk(int start, int size, unsigned char* buffer);
+  error_handling::ProgramResult GetHeap(unsigned char* buffer);
 
  private:
  // TODO: review
