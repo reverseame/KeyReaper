@@ -1,12 +1,20 @@
 #ifndef PROCESSCAPTURER_H
 #define PROCESSCAPTURER_H
 #include <Windows.h>
+#include <vector>
 
 #include "program_result.h"
 
 typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
 namespace process_manipulation {
+
+struct HeapInformation {
+  ULONG_PTR id;
+  ULONG_PTR base_address;
+  ULONG_PTR last_address;
+  SIZE_T size;
+};
 
 class ProcessCapturer {
  public:
@@ -25,7 +33,7 @@ class ProcessCapturer {
 
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(int start, int size, unsigned char* buffer);
-  error_handling::ProgramResult GetHeap(unsigned char* buffer);
+  error_handling::ProgramResult GetHeaps(std::vector<HeapInformation>* heaps);
 
  private:
  // TODO: review

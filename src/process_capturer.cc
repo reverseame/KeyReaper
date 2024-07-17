@@ -212,7 +212,11 @@ ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, unsigned char
   throw "Not yet implemented";
 }
 
-ProgramResult ProcessCapturer::GetHeap(unsigned char *buffer) {
+/**
+ * Retrieves the information of all the heaps of the process. It is necessary
+ * to have elevated privileges to perform this action.
+*/
+ProgramResult ProcessCapturer::GetHeaps(std::vector<HeapInformation>* heaps) {
   printf("Getting heap\n");
 
   HEAPLIST32 hl;
@@ -233,16 +237,26 @@ ProgramResult ProcessCapturer::GetHeap(unsigned char *buffer) {
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
-        printf( "\nHeap ID: %d\n", hl.th32HeapID );
-        int base_address = he.dwAddress;
-        printf("Base address: 0x%p\n", base_address );
+
+        HeapInformation heap_data;
+        heap_data.id = hl.th32HeapID;
+        heap_data.base_address = he.dwAddress;
+
         unsigned int total_size = 0;
         do {
           total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
         } while ( Heap32Next(&he) );
+
+        heap_data.size = total_size;
+        heap_data.last_address = total_size - 1 + heap_data.base_address;
+        heaps->push_back(heap_data);
+
+        printf( "\nHeap ID: %d\n", hl.th32HeapID );
+        printf("Base address: 0x%p\n", heap_data.base_address );
         printf("Size of heap: %u\n", total_size);
-        printf("Final address: 0x%p\n", total_size -1 + base_address);
+        printf("Final address: 0x%p\n", heap_data.last_address);
+
       }
       hl.dwSize = sizeof(HEAPLIST32);
     } while (Heap32ListNext( hHeapSnap, &hl));

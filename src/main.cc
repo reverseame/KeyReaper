@@ -4,6 +4,9 @@
 #include <Intsafe.h>
 #include <string>
 #include <iostream>
+#include <vector>
+#include <stdlib.h>
+#include <functional>
 
 #include "process_capturer.h"
 #include "program_result.h"
@@ -65,10 +68,6 @@ int main(int argc, char *argv[]) {
   }
   cout << "[i] Capturing PID: " << pid << endl;
 
-  //LPCTSTR message = "Hello, Windows API!";
-  //LPCTSTR caption = "test";
-  //MessageBox(NULL, message, caption, MB_OK);
-
   ProcessCapturer cp = ProcessCapturer(pid);
 
   char option = argv[2][0];
@@ -80,10 +79,22 @@ int main(int argc, char *argv[]) {
   
   cout << pr.GetResultInformation() << endl;
 
-  ProgramResult r = cp.GetHeap(NULL);
+  vector<HeapInformation> heaps;
+  ProgramResult r = cp.GetHeaps(&heaps);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     PrintLastError(TEXT("GETHEAP"));
+  }
+
+  for(const HeapInformation& heap : heaps) {
+    unsigned char* buffer = (unsigned char*) malloc(heap.size * sizeof(unsigned char));
+    if (buffer == NULL) exit(-1);
+
+    cp.GetMemoryChunk(heap.base_address, heap.last_address, buffer);
+    // Get rsaenh.dll base address
+    // Perform search
+
+    free(buffer);
   }
 
   return 0;
