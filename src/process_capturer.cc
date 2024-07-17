@@ -216,7 +216,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, unsigned char
  * Retrieves the information of all the heaps of the process. It is necessary
  * to have elevated privileges to perform this action.
 */
-ProgramResult ProcessCapturer::GetHeaps(std::vector<HeapInformation>* heaps) {
+ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* heaps) {
   printf("Getting heap\n");
 
   HEAPLIST32 hl;

@@ -33,7 +33,7 @@ class ProcessCapturer {
 
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(int start, int size, unsigned char* buffer);
-  error_handling::ProgramResult GetHeaps(std::vector<HeapInformation>* heaps);
+  error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
 
  private:
  // TODO: review

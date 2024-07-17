@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   cout << pr.GetResultInformation() << endl;
 
   vector<HeapInformation> heaps;
-  ProgramResult r = cp.GetHeaps(&heaps);
+  ProgramResult r = cp.GetProcessHeaps(&heaps);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     PrintLastError(TEXT("GETHEAP"));
