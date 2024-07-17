@@ -246,16 +246,27 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
         do {
           total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
+
+          // TODO: may consider ruling out free blocks LF32_FREE
+          // Q: what if they are scattered?
+          // (The heap manager probably tries to minimize fragmentation)
+          /*
+          DWORD flags = he.dwFlags;
+          if (flags == LF32_FREE) {printf("FREE\t", flags);}
+          else if (flags == LF32_FIXED) {printf("FIXED\t", flags);}
+          else if (flags == LF32_MOVEABLE) {printf("MOVEABLE\t", flags);}
+          else {printf("Else: %d\t", flags);}
+          */
         } while ( Heap32Next(&he) );
 
         heap_data.size = total_size;
-        heap_data.last_address = total_size - 1 + heap_data.base_address;
+        heap_data.final_address = total_size - 1 + heap_data.base_address;
         heaps->push_back(heap_data);
 
-        printf( "\nHeap ID: %d\n", hl.th32HeapID );
-        printf("Base address: 0x%p\n", heap_data.base_address );
+        printf("\nHeap ID: %d\n", hl.th32HeapID );
+        printf("Base address: 0x%p\n", (void*) heap_data.base_address );
         printf("Size of heap: %u\n", total_size);
-        printf("Final address: 0x%p\n", heap_data.last_address);
+        printf("Final address: 0x%p\n", (void*) heap_data.final_address);
 
       }
       hl.dwSize = sizeof(HEAPLIST32);

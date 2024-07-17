@@ -12,7 +12,7 @@ namespace process_manipulation {
 struct HeapInformation {
   ULONG_PTR id;
   ULONG_PTR base_address;
-  ULONG_PTR last_address;
+  ULONG_PTR final_address;
   SIZE_T size;
 };
 

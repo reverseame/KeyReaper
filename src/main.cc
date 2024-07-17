@@ -88,9 +88,9 @@ int main(int argc, char *argv[]) {
 
   for(const HeapInformation& heap : heaps) {
     unsigned char* buffer = (unsigned char*) malloc(heap.size * sizeof(unsigned char));
-    if (buffer == NULL) exit(-1);
+    if (buffer == NULL) return -1;
 
-    cp.GetMemoryChunk(heap.base_address, heap.last_address, buffer);
+    cp.GetMemoryChunk(heap.base_address, heap.size, buffer);
     // Get rsaenh.dll base address
     // Perform search
 
