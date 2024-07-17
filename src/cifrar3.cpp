@@ -175,19 +175,19 @@ int wmain(int argc, wchar_t *argv[])
 
     // PRINTING ALL STRUCTURE DATA (pointers)
     int *ptr = (int*) hKey;
-    printf("HCRYPTKEY:      %p\n", &hKey);
-    printf("CPGenKey:       %p\n", (void*) *(ptr+0));
-    printf("CPDeriveKey:    %p\n", (void*) *(ptr+1));
-    printf("CPDestroyKey:   %p\n", (void*) *(ptr+2));
-    printf("CPSetKeyParam:  %p\n", (void*) *(ptr+3));
-    printf("CPGetKeyParam:  %p\n", (void*) *(ptr+4));
-    printf("CPExportKey:    %p\n", (void*) *(ptr+5));
-    printf("CPImportKey:    %p\n", (void*) *(ptr+6));
-    printf("CPEncrypt:      %p\n", (void*) *(ptr+7));
-    printf("CPDecrypt:      %p\n", (void*) *(ptr+8));
-    printf("CPDuplicateKey: %p\n", (void*) *(ptr+9));
-    printf("hCryptProv:     %p\n", (void*) *(ptr+10));
-    printf("magic:          %p\n", (void*) *(ptr+11));
+    printf("HCRYPTKEY:      %p -> %p\n", &hKey, (void*) hKey);
+    printf("CPGenKey:       %p   [%p]\n", (void*) *(ptr+0), (void*) (ptr+0));
+    printf("CPDeriveKey:    %p   [%p]\n", (void*) *(ptr+1), (void*) (ptr+1));
+    printf("CPDestroyKey:   %p   [%p]\n", (void*) *(ptr+2), (void*) (ptr+2));
+    printf("CPSetKeyParam:  %p   [%p]\n", (void*) *(ptr+3), (void*) (ptr+3));
+    printf("CPGetKeyParam:  %p   [%p]\n", (void*) *(ptr+4), (void*) (ptr+4));
+    printf("CPExportKey:    %p   [%p]\n", (void*) *(ptr+5), (void*) (ptr+5));
+    printf("CPImportKey:    %p   [%p]\n", (void*) *(ptr+6), (void*) (ptr+6));
+    printf("CPEncrypt:      %p   [%p]\n", (void*) *(ptr+7), (void*) (ptr+7));
+    printf("CPDecrypt:      %p   [%p]\n", (void*) *(ptr+8), (void*) (ptr+8));
+    printf("CPDuplicateKey: %p   [%p]\n", (void*) *(ptr+9), (void*) (ptr+9));
+    printf("hCryptProv:     %p   [%p]\n", (void*) *(ptr+10), (void*) (ptr+10));
+    printf("magic:          %p   [%p]\n", (void*) *(ptr+11), (void*) (ptr+11));
     UINT_PTR magic_xor = (UINT_PTR) *(ptr + 11);
     magic_xor = magic_xor ^ 0xE35A172C;
     void **magic_s = (void**) magic_xor;
