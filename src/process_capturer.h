@@ -26,14 +26,14 @@ class ProcessCapturer {
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);
 
+  // Memory stealing
+  error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
+  error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
+
   // Query
   DWORD GetPid();
   bool IsSuspended();
   bool IsProcessAlive();
-
-  // Memory stealing
-  error_handling::ProgramResult GetMemoryChunk(int start, int size, unsigned char* buffer);
-  error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
 
  private:
  // TODO: review

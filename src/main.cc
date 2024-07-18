@@ -86,12 +86,31 @@ int main(int argc, char *argv[]) {
     PrintLastError(TEXT("GETHEAP"));
   }
 
+  int j = 0;
   for(const HeapInformation& heap : heaps) {
+    printf("============\nid: %d\n", j++);
     unsigned char* buffer = (unsigned char*) malloc(heap.size * sizeof(unsigned char));
     if (buffer == NULL) return -1;
+    
+    SIZE_T bytes_read;
+    ProgramResult pr = cp.GetMemoryChunk(reinterpret_cast<LPCVOID>(heap.base_address), heap.size, buffer, &bytes_read);
+    if (pr.IsOk()){
+      /*{ // Dump memory
+        for (unsigned long i = 0; i < bytes_read; i++) {
+          if (i % 16 == 0) {
+            printf("\n%08X", i + heap.base_address);
+          }
+          printf("%02X ", buffer[i]);
+        } printf("\n");
+      }*/
 
-    cp.GetMemoryChunk(heap.base_address, heap.size, buffer);
-    // Get rsaenh.dll base address
+    } else {
+      printf("Error while reading the heap\n");
+      
+    }
+    cout << pr.GetResultInformation() << endl;
+    
+    // Get rsaenh.dll base address (only in the structure strategy)
     // Perform search
 
     free(buffer);

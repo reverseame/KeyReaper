@@ -207,9 +207,38 @@ bool ProcessCapturer::IsProcessAlive() {
   return active;
 }
 
-ProgramResult ProcessCapturer::GetMemoryChunk(int start, int size, unsigned char* buffer) {
-  // TODO - implement ProcessCapturer::getMemoryChunk
-  throw "Not yet implemented";
+ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read) {
+  HANDLE process_handle = OpenProcess( PROCESS_VM_READ, FALSE, pid_ );
+
+  if (process_handle == NULL) {
+    return ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
+  }
+
+  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap data retrieved");
+
+  *bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
+  BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
+  if (result == 0) {
+    { // TODO: only verbose mode
+      printf("Bytes read: %u\n", *bytes_read);
+      printf("Base address:      0x%p\n", (ULONG_PTR) start);
+      ULONG_PTR last_address_read = (ULONG_PTR) start + *bytes_read;
+      printf("Last address read: 0x%p\n", last_address_read);
+      printf("Expected last add: 0x%p\n", (ULONG_PTR) start + size - 1);
+    }
+    func_result = ProgramResult(ResultType::kError, std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
+
+  } else {
+    if (*bytes_read > size) {
+      printf("Data written was bigger than buffer\n");
+      exit(ERROR_BUFFER_OVERFLOW);
+    }
+  }
+
+  printf("Buffer size: %+10u\n", size);
+  printf("Bytes read:  %+10u\n", *bytes_read);
+  CloseHandle(process_handle);
+  return func_result;
 }
 
 /**
@@ -228,7 +257,7 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
     return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
   }
 
-  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap captured successfully");
+  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap enumerated successfully");
 
   if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
@@ -241,33 +270,58 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
         HeapInformation heap_data;
         heap_data.id = hl.th32HeapID;
         heap_data.base_address = he.dwAddress;
+        ULONG_PTR next_address = he.dwAddress; // the first address of the following block
 
         unsigned int total_size = 0;
         do {
           total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
 
+          /*
+          {
+            printf("Block base: %p\n", (void*) he.dwAddress);
+            printf("Block size: %u\n", he.dwBlockSize);
+            printf("Final addr: %p\n", he.dwAddress + he.dwBlockSize - 1);
+            printf("Next addre: %p\n", he.dwAddress + he.dwBlockSize);
+            //printf("---\n");
+          }
+          */
+
+          // Q: what if the blocks are not adjacent
+          if (next_address != he.dwAddress) { printf("\nMismatch\n\n"); }
+          next_address = he.dwAddress + he.dwBlockSize;
+
           // TODO: may consider ruling out free blocks LF32_FREE
           // Q: what if they are scattered?
           // (The heap manager probably tries to minimize fragmentation)
           /*
-          DWORD flags = he.dwFlags;
-          if (flags == LF32_FREE) {printf("FREE\t", flags);}
-          else if (flags == LF32_FIXED) {printf("FIXED\t", flags);}
-          else if (flags == LF32_MOVEABLE) {printf("MOVEABLE\t", flags);}
-          else {printf("Else: %d\t", flags);}
+          {
+            DWORD flags = he.dwFlags;
+            if (flags == LF32_FREE) {printf("FREE (%d)\t", flags);}
+            else if (flags == LF32_FIXED) {printf("FIXED (%d)\t", flags);}
+            else if (flags == LF32_MOVEABLE) {printf("MOVEABLE (%d)\t", flags);}
+            else {printf("Else: %d\t", flags);}
+            printf("\n----\n");
+          }
           */
         } while ( Heap32Next(&he) );
+
+        // If the last block is free, then is the top chunk
+        if (he.dwFlags == LF32_FREE) {
+          // It will generate invalid addresses, therefore we should remove it
+          total_size -= he.dwBlockSize;
+        }
 
         heap_data.size = total_size;
         heap_data.final_address = total_size - 1 + heap_data.base_address;
         heaps->push_back(heap_data);
 
-        printf("\nHeap ID: %d\n", hl.th32HeapID );
+        printf("======\n");
+        printf("Heap ID: %d\n", hl.th32HeapID );
         printf("Base address: 0x%p\n", (void*) heap_data.base_address );
         printf("Size of heap: %u\n", total_size);
         printf("Final address: 0x%p\n", (void*) heap_data.final_address);
-
+        printf("\n");
       }
       hl.dwSize = sizeof(HEAPLIST32);
     } while (Heap32ListNext( hHeapSnap, &hl));
