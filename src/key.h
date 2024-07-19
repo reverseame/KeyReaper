@@ -3,7 +3,7 @@
 
 namespace key_scanner {
 
-enum class KeySize : std::size_t { kError = 0, k128 = 16, k256 = 32 };
+enum class KeySize : size_t { kError = 0, k128 = 16, k256 = 32 };
 enum class CipherAlgorithm { kError, kAES, kRSA };
 
 class KeyType {
@@ -11,7 +11,7 @@ class KeyType {
   KeyType(KeySize key_size, CipherAlgorithm algorithm) : 
       key_size_(key_size), algorithm_(algorithm) {};
   
-  std::size_t KeyType::GetSize() const;
+  size_t KeyType::GetSize() const;
   CipherAlgorithm GetAlgorithm() const;
 
  private:
