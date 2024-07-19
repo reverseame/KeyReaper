@@ -106,13 +106,11 @@ int main(int argc, char *argv[]) {
 
     } else {
       printf("Error while reading the heap\n");
-      
     }
     cout << pr.GetResultInformation() << endl;
     
     // Get rsaenh.dll base address (only in the structure strategy)
     // Perform search
-
     free(buffer);
   }
 

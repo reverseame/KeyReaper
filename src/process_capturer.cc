@@ -3,9 +3,12 @@
 #include <tlhelp32.h>
 #pragma comment(lib, "Kernel32.lib")
 
+#include "key_scanner.h"
 #include "process_capturer.h"
 using ProgramResult = error_handling::ProgramResult;
 using ResultType = ProgramResult::ResultType;
+using StructureScanner = key_scanner::StructureScan;
+using Key = key_scanner::Key;
 
 namespace process_manipulation {
 
@@ -176,6 +179,7 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
       }
     }
 
+    suspended_ = false;
     CloseHandle(proc_handle);
   }
 

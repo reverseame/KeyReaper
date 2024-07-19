@@ -6,13 +6,19 @@
 
 #include "key.h"
 #include "process_capturer.h"
+#include "scanners.h"
 
 namespace key_scanner {
+
+enum class OnDestroyAction {
+  kKillProcess,
+  kPauseProcess,
+  kResumeProcess,
+};
 
 class KeyScanner {
 
  public:
-
   // Constructors and destructor
   KeyScanner(int pid, unsigned int stride, std::vector<ScanStrategy> strategies, OnDestroyAction on_destroy = OnDestroyAction::kPauseProcess);
   ~KeyScanner();
@@ -23,37 +29,17 @@ class KeyScanner {
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
 
   // Query
-  std::unordered_set<Key> DoScan();
+  std::unordered_set<Key, Key::KeyHashFunction> DoScan();
 
  private:
-  void AddKeys(std::unordered_set<Key> keys);
+  void AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys);
 
   process_manipulation::ProcessCapturer capturer_;
   std::vector<ScanStrategy> strategies_;
-  std::unordered_set<Key> keys_;
+  std::unordered_set<Key, Key::KeyHashFunction> keys_;
   OnDestroyAction on_destroy_;
   unsigned int stride_;
   DWORD pid_;
-};
-
-// abstract
-class ScanStrategy {
-  virtual ~ScanStrategy() = default;
-  virtual std::unordered_set<Key> Scan(unsigned char* buffer, size_t buffer_size) const = 0;
-};
-
-class StructureScan : ScanStrategy {
-  std::unordered_set<Key> Scan(unsigned char* buffer, size_t buffer_size) const override;
-};
-
-class RoundKeyScan : ScanStrategy {
-  std::unordered_set<Key> Scan(unsigned char* buffer, size_t buffer_size) const override;
-};
-
-enum class OnDestroyAction {
-  kKillProcess,
-  kPauseProcess,
-  kResumeProcess,
 };
 
 } // namespace key_scanner

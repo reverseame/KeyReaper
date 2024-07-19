@@ -20,7 +20,7 @@ error_handling::ProgramResult KeyScanner::ResumeProcess(bool force_resume) {
     return capturer_.ResumeProcess(force_resume);
 }
 
-std::unordered_set<Key> KeyScanner::DoScan() {
+std::unordered_set<Key, Key::KeyHashFunction> KeyScanner::DoScan() {
 
     // Main functionality
     // Capture memory and pass it to the analyzers
@@ -28,7 +28,7 @@ std::unordered_set<Key> KeyScanner::DoScan() {
     return keys_;
 }
 
-void KeyScanner::AddKeys(std::unordered_set<Key> keys) {
+void KeyScanner::AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }
 
