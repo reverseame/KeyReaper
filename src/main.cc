@@ -95,14 +95,7 @@ int main(int argc, char *argv[]) {
     SIZE_T bytes_read;
     ProgramResult pr = cp.GetMemoryChunk(reinterpret_cast<LPCVOID>(heap.base_address), heap.size, buffer, &bytes_read);
     if (pr.IsOk()){
-      /*{ // Dump memory
-        for (unsigned long i = 0; i < bytes_read; i++) {
-          if (i % 16 == 0) {
-            printf("\n%08X", i + heap.base_address);
-          }
-          printf("%02X ", buffer[i]);
-        } printf("\n");
-      }*/
+      ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
 
     } else {
       printf("Error while reading the heap\n");

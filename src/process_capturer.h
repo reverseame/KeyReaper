@@ -30,6 +30,8 @@ class ProcessCapturer {
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
 
+  void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address = 0x0);
+
   // Query
   DWORD GetPid() const;
   bool IsSuspended();

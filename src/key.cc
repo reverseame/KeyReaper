@@ -12,7 +12,7 @@ Key::Key(KeySize key_size, CipherAlgorithm algorithm) : cipher_type_(key_size, a
     cipher_type_ = KeyType(key_size, algorithm);
   
   } catch (const std::bad_alloc& e) {
-    cout << "Key allocation failed" << endl;
+    cout << "Key allocation failed: " << e.what() << endl;
     key_ = nullptr;
     cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
   }

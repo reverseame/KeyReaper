@@ -225,10 +225,10 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   if (result == 0) {
     { // TODO: only verbose mode
       printf("Bytes read: %u\n", *bytes_read);
-      printf("Base address:      0x%p\n", (ULONG_PTR) start);
+      printf("Base address:      0x%p\n", (void*) start);
       ULONG_PTR last_address_read = (ULONG_PTR) start + *bytes_read;
-      printf("Last address read: 0x%p\n", last_address_read);
-      printf("Expected last add: 0x%p\n", (ULONG_PTR) start + size - 1);
+      printf("Last address read: 0x%p\n", (void*) last_address_read);
+      printf("Expected last add: 0x%p\n", (void*) ((ULONG_PTR) start + size - 1));
     }
     func_result = ProgramResult(ResultType::kError, std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
 
@@ -339,11 +339,20 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   return func_result;
 }
 
+void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address) {
+  for (unsigned long i = 0; i < num_of_bytes; i++) {
+    if (i % 16 == 0) {
+      printf("\n%08X", i + start_address);
+    }
+    printf("%02X ", buffer[i]);
+  } printf("\n");
+}
+
 bool ProcessCapturer::IsSuspended() {
   return suspended_;
 }
 
-DWORD ProcessCapturer::GetPid() {
+DWORD ProcessCapturer::GetPid() const {
   return pid_;
 }
 

@@ -15,7 +15,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/key.cc
     ${SOURCE_BASE_DIR}/scanners.cc
-    ${SOURCE_BASE_DIR}/key_scanner.cc
+    #${SOURCE_BASE_DIR}/key_scanner.cc
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${SOURCE_BASE_DIR}/main.cc
 )
