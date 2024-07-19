@@ -14,19 +14,19 @@ class ScanStrategy {
 
 class StructureScan : public ScanStrategy {
  public:
-  StructureScan() {};
+  StructureScan() = default;
   std::unordered_set<Key, Key::KeyHashFunction> Scan(unsigned char* buffer, size_t buffer_size) const override;
 };
 
 class RoundKeyScan : public ScanStrategy {
  public:
-  RoundKeyScan() {};
+  RoundKeyScan() = default;
   std::unordered_set<Key, Key::KeyHashFunction> Scan(unsigned char* buffer, size_t buffer_size) const override;
 };
 
 class StrategyBuilder {
  public:
-  StrategyBuilder() {};
+  StrategyBuilder() = default;
 
   void AddStructureScan();
   void AddRoundKeyScan();

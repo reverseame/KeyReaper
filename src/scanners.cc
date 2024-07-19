@@ -21,12 +21,12 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> StrategyBuilder::GetScanners() {
 
   if (do_round_key_scan_) {
     RoundKeyScan s = RoundKeyScan();
-    strategies->push_back(make_unique<ScanStrategy>(s));
+    strategies->push_back(make_unique<RoundKeyScan>(s));
   }
 
   if (do_structure_scan_) {
     StructureScan s = StructureScan();
-    strategies->push_back(make_unique<ScanStrategy>(s));
+    strategies->push_back(make_unique<StructureScan>(s));
   }
 
   return strategies;

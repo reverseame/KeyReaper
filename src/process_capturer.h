@@ -31,7 +31,7 @@ class ProcessCapturer {
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
 
   // Query
-  DWORD GetPid();
+  DWORD GetPid() const;
   bool IsSuspended();
   bool IsProcessAlive();
 

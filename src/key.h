@@ -1,6 +1,7 @@
 #ifndef KEY_H
 #define KEY_H
 
+#include <cstddef>
 namespace key_scanner {
 
 enum class KeySize : size_t { kError = 0, k128 = 16, k256 = 32 };
@@ -11,8 +12,8 @@ class KeyType {
   KeyType(KeySize key_size, CipherAlgorithm algorithm) : 
       key_size_(key_size), algorithm_(algorithm) {};
   
-  size_t KeyType::GetSize() const;
-  CipherAlgorithm GetAlgorithm() const;
+  [[nodiscard]] size_t GetSize() const;
+  [[nodiscard]] CipherAlgorithm GetAlgorithm() const;
 
  private:
   KeySize key_size_;
@@ -24,8 +25,8 @@ class Key {
   Key(KeySize key_size, CipherAlgorithm algorithm);
   ~Key();
 
-  size_t Key::GetSize() const;
-  unsigned char* Key::GetKey() const;
+  [[nodiscard]] size_t GetSize() const;
+  [[nodiscard]] unsigned char* GetKey() const;
 
   bool operator==(const Key& other) const;
 

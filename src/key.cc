@@ -8,13 +8,12 @@ namespace key_scanner {
 Key::Key(KeySize key_size, CipherAlgorithm algorithm) : cipher_type_(key_size, algorithm) {
   
   try {
-    unsigned char* key = new unsigned char[cipher_type_.GetSize()];
-    key_ = key;
+    key_ = new unsigned char[cipher_type_.GetSize()];
     cipher_type_ = KeyType(key_size, algorithm);
   
   } catch (const std::bad_alloc& e) {
     cout << "Key allocation failed" << endl;
-    key_ = NULL;
+    key_ = nullptr;
     cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
   }
 }
@@ -62,9 +61,9 @@ size_t Key::KeyHashFunction::operator()(const Key &key) const
 {
   unsigned char* key_data = key.GetKey();
 
-  size_t hash = std::hash<char>()(key_data[0]);
+  size_t hash = std::hash<unsigned char>()(key_data[0]);
   for (size_t i = 1; key.GetSize(); i++) {
-    hash = hash ^ std::hash<char>()(key_data[i]);
+    hash = hash ^ std::hash<unsigned char>()(key_data[i]);
   }
   return hash;
 }
