@@ -10,6 +10,84 @@ using ResultType = ProgramResult::ResultType;
 using StructureScanner = key_scanner::StructureScan;
 using Key = key_scanner::Key;
 
+#include <iostream>
+unsigned long show_module(MEMORY_BASIC_INFORMATION info) {
+    unsigned long usage = 0;
+
+    printf(" Allocation base: 0x%p\n", (void*) info.AllocationBase);
+    printf(" Region size: 0x%x\n", info.RegionSize);
+    printf(" Last region address: 0x%p\n", (void*)(info.RegionSize + (ULONG_PTR) info.AllocationBase));
+
+
+    std::cout << " [i] " << info.BaseAddress << "(" << info.RegionSize / 1024 << ")\t";
+    switch (info.State) {
+    case MEM_COMMIT:
+        std::cout << "Committed";
+        break;
+    case MEM_RESERVE:
+        std::cout << "Reserved";
+        break;
+    case MEM_FREE:
+        std::cout << "Free";
+        break;
+    }
+    std::cout << "\t";
+    switch (info.Type) {
+    case MEM_IMAGE:
+        std::cout << "Code Module";
+        break;
+    case MEM_MAPPED:
+        std::cout << "Mapped     ";
+        break;
+    case MEM_PRIVATE:
+        std::cout << "Private    ";
+    }
+    std::cout << "\t";
+
+    int guard = 0, nocache = 0;
+
+    if ( info.AllocationProtect & PAGE_NOCACHE)
+        nocache = 1;
+    if ( info.AllocationProtect & PAGE_GUARD )
+        guard = 1;
+
+    info.AllocationProtect &= ~(PAGE_GUARD | PAGE_NOCACHE);
+
+    if ((info.State == MEM_COMMIT) && (info.AllocationProtect == PAGE_READWRITE || info.AllocationProtect == PAGE_READONLY))
+        usage += info.RegionSize;
+
+    switch (info.AllocationProtect) {
+    case PAGE_READONLY:
+        std::cout << "Read Only";
+        break;
+    case PAGE_READWRITE:
+        std::cout << "Read/Write";
+        break;
+    case PAGE_WRITECOPY:
+        std::cout << "Copy on Write";
+        break;
+    case PAGE_EXECUTE:
+        std::cout << "Execute only";
+        break;
+    case PAGE_EXECUTE_READ:
+        std::cout << "Execute/Read";
+        break;
+    case PAGE_EXECUTE_READWRITE:
+        std::cout << "Execute/Read/Write";
+        break;
+    case PAGE_EXECUTE_WRITECOPY:
+        std::cout << "COW Executable";
+        break;
+    }
+
+    if (guard)
+        std::cout << "\tguard page";
+    if (nocache)
+        std::cout << "\tnon-cacheable";
+    std::cout << "\n\n";
+    return usage;
+}
+
 namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
@@ -212,7 +290,7 @@ bool ProcessCapturer::IsProcessAlive() {
 }
 
 ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read) {
-  HANDLE process_handle = OpenProcess( PROCESS_VM_READ, FALSE, pid_ );
+  HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
 
   if (process_handle == NULL) {
     return ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
@@ -230,7 +308,30 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
       printf("Last address read: 0x%p\n", (void*) last_address_read);
       printf("Expected last add: 0x%p\n", (void*) ((ULONG_PTR) start + size - 1));
     }
-    func_result = ProgramResult(ResultType::kError, std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
+
+    MEMORY_BASIC_INFORMATION info;
+    LPCVOID starting_address = (LPCVOID)((ULONG_PTR) start + (ULONG_PTR) *bytes_read + 1);
+    // LPCVOID address = (LPCVOID) ((ULONG_PTR) start + size - 1); // breaking part of the chunk
+    
+    SIZE_T info_bytes = VirtualQueryEx(process_handle, starting_address, &info, sizeof(info));
+
+    printf(" FAULTING ADDRESS: %p\n", starting_address);
+    if (info_bytes == ERROR_INVALID_PARAMETER && info_bytes != sizeof(info)) {
+      printf(" Address above the valid address space\n");
+      func_result = ProgramResult(ResultType::kError, std::string("Address above the valid address space. Win error: ").append(std::to_string(GetLastError())));
+
+    } else {
+
+      /*
+      unsigned long usage = 0;
+      for ( LPCVOID address = starting_address;
+        VirtualQueryEx(process_handle, address, &info, sizeof(info)) == sizeof(info);
+        address = (LPCVOID)((ULONG_PTR) address + info.RegionSize) ) {
+        usage += show_module(info);
+      }
+      */
+      func_result = ProgramResult(ResultType::kError, std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
+    }
 
   } else {
     if (*bytes_read > size) {
@@ -339,10 +440,124 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   return func_result;
 }
 
+/**
+ * From the information about the heap, copies the whole heap to a buffer.
+ * Although the pointer must be user supplied, note that the memory allocation 
+ * is done by this function, and the release must be done by the user.
+ * 
+ * A few things to note about the function
+ *  * It will initialize the memory region with zeroes
+ *  * It skips the LF32_FREE blocks, since they may produce invalid addresses
+ *  * If the block cannot be copied or is marked as free will be filled with 0xFF
+ * 
+ * ## Arguments
+ *  * [in] HeapInformation heap. This is obtained through the GetProcessHeaps function
+ *  * [out] unsigned char** buffer. This is where the function will place the allocated buffer with the heap data.
+ *  * [out] SIZE_T size. Number of bytes written
+*/
+ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** output_buffer, SIZE_T* size) {
+  printf("Getting heaps\n");
+
+  HEAPLIST32 hl;
+  HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
+  hl.dwSize = sizeof(HEAPLIST32);
+
+  if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
+    printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
+    return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
+  }
+
+  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heaps copied successfully");
+
+  HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
+  if (process_handle == NULL) {
+    return ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
+  }
+
+  unsigned char* buffer = NULL;
+  SIZE_T position = 0;
+  bool found = false;
+
+  // TODO: consider controlling the heap mutex with HeapLock and also check 
+  //       if it was already locked
+  // https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaplock
+  if( Heap32ListFirst(hHeapSnap, &hl)) {
+    do {
+      HEAPENTRY32 he;
+      ZeroMemory(&he, sizeof(HEAPENTRY32));
+      he.dwSize = sizeof(HEAPENTRY32);
+
+      if (hl.th32HeapID != heap_to_copy.id) { continue; }
+      found = true; 
+      printf("Total size: %u\n", heap_to_copy.size);
+
+      buffer = (unsigned char*) calloc(sizeof(unsigned char), heap_to_copy.size);
+      if (buffer == NULL) {
+        func_result = ProgramResult(ResultType::kError, "Could not allocate memory for the heap data");
+      
+      } else if ( Heap32First(&he, pid_, hl.th32HeapID )) {
+        
+        // TODO: instead of checking each heap block, check the pages within
+        //       this could reveal pages hiddenly used with old valid addresses?
+        do {
+          printf("[%u]\r", position);
+          bool nullify = false;
+          SIZE_T bytes_read = !NULL;
+
+          // LF32_MOVEABLE??
+          if (he.dwFlags == LF32_FREE) {
+            nullify = true;
+            bytes_read = he.dwBlockSize;
+
+          } else {
+            he.dwSize = sizeof(HEAPENTRY32);
+            SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
+            BOOL result = ReadProcessMemory(process_handle, (LPCVOID) he.dwAddress, (LPVOID) (buffer + position), he.dwBlockSize, &bytes_read);
+            if (result == 0) { // error
+              printf("Error copying at buffer position %d. Retrieved %u bytes, filling up to %u with FF\n", position, bytes_read, he.dwBlockSize - 1);
+              printf("Windows error: %d\n", GetLastError()); 
+              nullify = true;
+            }
+          } 
+
+          if (nullify) {
+            // Nullifiy region
+            for (size_t i = bytes_read + 1; i < he.dwBlockSize; i++) {
+              buffer[position + i] = 0xFF;
+            }
+          }
+      
+          position += he.dwBlockSize;
+
+        } while ( Heap32Next(&he) );
+        // && position < heap_to_copy.size
+        // if we wanted not to consider the top chunk. Anyway, we are not
+        // including free chunks, therefore the top chunk gets ruled out as well
+        // and we get rid of an additional computation on each iteration
+      }
+
+      hl.dwSize = sizeof(HEAPLIST32);
+    } while (Heap32ListNext( hHeapSnap, &hl) && !found);
+
+    printf("A\n");
+    *size = position;
+    *output_buffer = buffer;
+    CloseHandle(process_handle);
+  
+  } else { 
+    printf ("Cannot list first heap (%d)\n", GetLastError());
+    func_result = ProgramResult(ResultType::kError, "Cannot list first heap");
+  }
+   
+  CloseHandle(hHeapSnap);
+  return func_result;
+}
+
 void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address) {
+  printf("            0           4           8           C");
   for (unsigned long i = 0; i < num_of_bytes; i++) {
     if (i % 16 == 0) {
-      printf("\n%08X", i + start_address);
+      printf("\n [%08X] ", i + (ULONG_PTR) start_address);
     }
     printf("%02X ", buffer[i]);
   } printf("\n");

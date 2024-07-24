@@ -95,16 +95,22 @@ int main(int argc, char *argv[]) {
     SIZE_T bytes_read;
     ProgramResult pr = cp.GetMemoryChunk(reinterpret_cast<LPCVOID>(heap.base_address), heap.size, buffer, &bytes_read);
     if (pr.IsOk()){
-      ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
+      //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
 
     } else {
       printf("Error while reading the heap\n");
     }
     cout << pr.GetResultInformation() << endl;
-    
+
+    unsigned char* buffer3 = NULL;
+    SIZE_T size;
+    ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer3, &size);
+    cout << "V2 heap copy result: " <<  pr2.GetResultInformation() << endl;
+    ProcessCapturer::PrintMemory(buffer3, 64, heap.base_address);
+
     // Get rsaenh.dll base address (only in the structure strategy)
     // Perform search
-    free(buffer);
+    free(buffer3);
   }
 
   return 0;

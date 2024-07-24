@@ -29,6 +29,7 @@ class ProcessCapturer {
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
+  error_handling::ProgramResult CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** buffer, SIZE_T* size);
 
   void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address = 0x0);
 
