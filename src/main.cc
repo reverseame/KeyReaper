@@ -10,8 +10,10 @@
 
 #include "process_capturer.h"
 #include "program_result.h"
+#include "scanners.h"
 
 using namespace process_manipulation;
+using namespace key_scanner;
 using namespace error_handling;
 using namespace std;
 
@@ -89,28 +91,19 @@ int main(int argc, char *argv[]) {
   int j = 0;
   for(const HeapInformation& heap : heaps) {
     printf("============\nid: %d\n", j++);
-    unsigned char* buffer = (unsigned char*) malloc(heap.size * sizeof(unsigned char));
-    if (buffer == NULL) return -1;
-    
-    SIZE_T bytes_read;
-    ProgramResult pr = cp.GetMemoryChunk(reinterpret_cast<LPCVOID>(heap.base_address), heap.size, buffer, &bytes_read);
-    if (pr.IsOk()){
-      //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
-
-    } else {
-      printf("Error while reading the heap\n");
-    }
-    cout << pr.GetResultInformation() << endl;
-
-    unsigned char* buffer3 = NULL;
+    unsigned char* buffer = NULL;
     SIZE_T size;
-    ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer3, &size);
+    ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer, &size);
     cout << "V2 heap copy result: " <<  pr2.GetResultInformation() << endl;
-    ProcessCapturer::PrintMemory(buffer3, 64, heap.base_address);
+    ProcessCapturer::PrintMemory(buffer + 0x1FCD0, 64, heap.base_address);
 
     // Get rsaenh.dll base address (only in the structure strategy)
     // Perform search
-    free(buffer3);
+
+    StructureScan scanner = StructureScan::StructureScan();
+    scanner.Scan(buffer, size);
+
+    free(buffer); buffer = NULL;
   }
 
   return 0;

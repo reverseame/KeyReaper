@@ -15,7 +15,7 @@ class ScanStrategy {
 class StructureScan : public ScanStrategy {
  public:
   StructureScan() = default;
-  std::unordered_set<Key, Key::KeyHashFunction> Scan(unsigned char* buffer, size_t buffer_size) const override;
+  std::unordered_set<Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, size_t buffer_size) const override;
 };
 
 class RoundKeyScan : public ScanStrategy {

@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
+
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_GENERATOR_PLATFORM Win32)
 project(Craperv2)
 
 set(MSVC True)
@@ -6,9 +9,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SOURCE_BASE_DIR "${CMAKE_SOURCE_DIR}/src")
+#set(CMAKE_TOOLCHAIN_FILE "C:/Users/Leon/Documents/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
 # Output files to bin directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+#find_package(Boost REQUIRED COMPONENTS system filesystem) 
 
 set(EXECUTABLE_NAME "test")
 add_executable(${EXECUTABLE_NAME}
@@ -23,3 +29,5 @@ add_executable(${EXECUTABLE_NAME}
 add_executable(cifrar3 
     ${SOURCE_BASE_DIR}/cifrar3.cpp
 )
+
+#target_link_libraries(test PRIVATE boost::boost)

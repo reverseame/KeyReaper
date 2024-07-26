@@ -476,6 +476,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
   unsigned char* buffer = NULL;
   SIZE_T position = 0;
+  SIZE_T failed_reads = 0;
   bool found = false;
 
   // TODO: consider controlling the heap mutex with HeapLock and also check 
@@ -488,7 +489,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
       he.dwSize = sizeof(HEAPENTRY32);
 
       if (hl.th32HeapID != heap_to_copy.id) { continue; }
-      found = true; 
+      found = true;
       printf("Total size: %u\n", heap_to_copy.size);
 
       buffer = (unsigned char*) calloc(sizeof(unsigned char), heap_to_copy.size);
@@ -507,21 +508,22 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
           // LF32_MOVEABLE??
           if (he.dwFlags == LF32_FREE) {
             nullify = true;
-            bytes_read = he.dwBlockSize;
+            bytes_read = 0;
 
           } else {
             he.dwSize = sizeof(HEAPENTRY32);
             SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
             BOOL result = ReadProcessMemory(process_handle, (LPCVOID) he.dwAddress, (LPVOID) (buffer + position), he.dwBlockSize, &bytes_read);
             if (result == 0) { // error
-              printf("Error copying at buffer position %d. Retrieved %u bytes, filling up to %u with FF\n", position, bytes_read, he.dwBlockSize - 1);
-              printf("Windows error: %d\n", GetLastError()); 
+              //printf("Error copying at buffer position %d. Retrieved %u bytes, filling up to %u with FF\n", position, bytes_read, he.dwBlockSize - 1);
+              //printf("Windows error: %d\n", GetLastError()); 
               nullify = true;
             }
           } 
 
           if (nullify) {
             // Nullifiy region
+            failed_reads += he.dwBlockSize - bytes_read;
             for (size_t i = bytes_read + 1; i < he.dwBlockSize; i++) {
               buffer[position + i] = 0xFF;
             }
@@ -529,17 +531,15 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
       
           position += he.dwBlockSize;
 
-        } while ( Heap32Next(&he) );
+        } while ( Heap32Next(&he) && position < heap_to_copy.size);
         // && position < heap_to_copy.size
-        // if we wanted not to consider the top chunk. Anyway, we are not
-        // including free chunks, therefore the top chunk gets ruled out as well
-        // and we get rid of an additional computation on each iteration
+        // if we wanted not to consider the top chunk
       }
 
       hl.dwSize = sizeof(HEAPLIST32);
     } while (Heap32ListNext( hHeapSnap, &hl) && !found);
 
-    printf("A\n");
+    printf("Failed reads: %u\n", failed_reads);
     *size = position;
     *output_buffer = buffer;
     CloseHandle(process_handle);
