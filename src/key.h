@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
-#include "scanners.h"
+#include "cryptoapi.h"
 
 namespace key_scanner {
 

@@ -6,6 +6,7 @@
 #include "key.h"
 #include "scanners.h"
 #include "process_capturer.h"
+#include "cryptoapi.h"
 
 using namespace std;
 using ProcessCapturer = process_manipulation::ProcessCapturer;
