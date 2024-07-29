@@ -23,10 +23,9 @@ Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) :
 
   switch (key_data->alg) {
   case CALG_AES_128:
+    // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
+    printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
     cipher_type_ = KeyType(KeySize::k128, CipherAlgorithm::kAES);
-    printf(" -- key start: %p\n", key);
-    printf("  - key size: %u\n", key_data->key_size);
-    printf("  - key end: %p\n", key + key_data->key_size);
     key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
     // TODO: key
     break;

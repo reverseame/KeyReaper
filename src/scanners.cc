@@ -104,17 +104,15 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
 
         heap_offset = ((ULONG_PTR) magic_struct_ptr->key_data) - heap_info.base_address;
         cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) (heap_offset + (ULONG_PTR) input_buffer);
-        ProcessCapturer::PrintMemory((unsigned char*) key_data, 32);
+        ProcessCapturer::PrintMemory((unsigned char*) key_data, 32, heap_info.base_address + heap_offset);
 
-        // TODO: cambiar key a vector en lugar de reserva dinámica (más fácil?)
-        // Pedirle al gpt que convierta la tabla (como si es en html) a defines https://learn.microsoft.com/en-us/windows/win32/seccrypto/alg-id
-        // Añadir una función al namespace de cryptoapi para la traducción de las macros de windows a mi formato propio (+portabilidad)
-        //Key key = Key()
-        
-      } 
+        heap_offset = ((ULONG_PTR) key_data->key_bytes - (ULONG_PTR) heap_info.base_address);
+        Key key = Key(key_data, (unsigned char*) ((ULONG_PTR) input_buffer + heap_offset));
+        printf("     Key found at 0x%p\n", key_data->key_bytes);
 
-      // TODO add the key to the list
-      //found_keys.insert();
+        ProcessCapturer::PrintMemory((unsigned char*) ((ULONG_PTR) input_buffer + heap_offset), 16, heap_info.base_address + heap_offset);
+        //found_keys.insert(key); // error??
+      }
 
       search_start = search_result + pattern_size;
     }
