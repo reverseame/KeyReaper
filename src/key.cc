@@ -27,7 +27,6 @@ Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) :
     printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
     cipher_type_ = KeyType(KeySize::k128, CipherAlgorithm::kAES);
     key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
-    // TODO: key
     break;
 
   case CALG_AES_256:
@@ -48,14 +47,16 @@ size_t Key::GetSize() const {
 }
 
 vector<unsigned char> Key::GetKey() const {
-  if (cipher_type_.GetAlgorithm() == CipherAlgorithm::kError) return vector<unsigned char>();
-
+  if (cipher_type_.GetAlgorithm() == CipherAlgorithm::kError) 
+    return vector<unsigned char>();
+  
   return *key_; // return a copy
 }
 
 bool Key::operator==(const Key &other) const {
 
-  if (this->GetSize() != other.GetSize()) return false;
+  if (this->GetSize() != other.GetSize()) 
+    return false;
 
   return (this->GetKey() == other.GetKey());
 
@@ -71,9 +72,12 @@ CipherAlgorithm KeyType::GetAlgorithm() const {
 
 size_t Key::KeyHashFunction::operator()(const Key &key) const {
   const vector<unsigned char> key_data = key.GetKey();
+  if (key_data.empty()) {
+    return 0;
+  }
 
   size_t hash = std::hash<unsigned char>()(key_data[0]);
-  for (size_t i = 1; key_data.size(); i++) {
+  for (size_t i = 1; i < key_data.size(); ++i) {
     hash = hash ^ std::hash<unsigned char>()(key_data[i]);
   }
   return hash;

@@ -28,6 +28,10 @@ class Key {
  public:
   Key(KeySize key_size, CipherAlgorithm algorithm, unsigned char* key);
   Key(cryptoapi::key_data_s* key_data, unsigned char* key);
+  Key(const Key& other) :
+      cipher_type_(other.cipher_type_),
+      key_(other.key_ ? std::make_unique<std::vector<unsigned char>>(*other.key_) : nullptr) {}; 
+  Key& operator=(const Key& other) = default;
 
   size_t GetSize() const;
   std::vector<unsigned char> GetKey() const;

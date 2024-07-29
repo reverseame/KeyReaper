@@ -95,23 +95,21 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
         printf("Address out of this heap\n");
 
       } else {
-        printf("  >  KCRYPTKEY magic: %08X\n", h_crypt_key->magic);
         ULONG_PTR heap_offset = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
-        printf("     XORED: %08X\n", heap_offset);
         heap_offset -= (ULONG_PTR) heap_info.base_address; // offset in relation to the buffer
         cryptoapi::magic_s* magic_struct_ptr = (cryptoapi::magic_s*) ((ULONG_PTR) heap_offset + (ULONG_PTR) input_buffer); // Why does it fail with the structure
-        ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
+        // ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
 
         heap_offset = ((ULONG_PTR) magic_struct_ptr->key_data) - heap_info.base_address;
         cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) (heap_offset + (ULONG_PTR) input_buffer);
-        ProcessCapturer::PrintMemory((unsigned char*) key_data, 32, heap_info.base_address + heap_offset);
+        // ProcessCapturer::PrintMemory((unsigned char*) key_data, 32, heap_info.base_address + heap_offset);
 
         heap_offset = ((ULONG_PTR) key_data->key_bytes - (ULONG_PTR) heap_info.base_address);
         Key key = Key(key_data, (unsigned char*) ((ULONG_PTR) input_buffer + heap_offset));
         printf("     Key found at 0x%p\n", key_data->key_bytes);
 
         ProcessCapturer::PrintMemory((unsigned char*) ((ULONG_PTR) input_buffer + heap_offset), 16, heap_info.base_address + heap_offset);
-        //found_keys.insert(key); // error??
+        found_keys.insert(key);
       }
 
       search_start = search_result + pattern_size;

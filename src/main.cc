@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
     PrintLastError(TEXT("GETHEAP"));
   }
 
+  unordered_set<Key, Key::KeyHashFunction> keys;
   int j = 1;
   for(const HeapInformation& heap : heaps) {
     printf("============\nid: %d/%d [@%08X | %08X]\n", j++, heaps.size(), heap.base_address, heap.final_address);
@@ -98,9 +99,16 @@ int main(int argc, char *argv[]) {
     //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
 
     StructureScan scanner = StructureScan::StructureScan();
-    scanner.Scan(buffer, heap);
+    keys.merge( scanner.Scan(buffer, heap) );
 
     free(buffer); buffer = NULL;
+  }
+
+  printf("\n=======================\n");
+  printf("All found keys: \n");
+  int i = 0;
+  for (auto &key : keys) {
+    ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize(), ++i);
   }
 
   return 0;
