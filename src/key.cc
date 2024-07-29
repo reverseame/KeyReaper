@@ -5,22 +5,42 @@
 using namespace std;
 
 namespace key_scanner {
-Key::Key(KeySize key_size, CipherAlgorithm algorithm) : cipher_type_(key_size, algorithm) {
+Key::Key(KeySize key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
   
   try {
-    key_ = new unsigned char[cipher_type_.GetSize()];
-    cipher_type_ = KeyType(key_size, algorithm);
+    key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + cipher_type_.GetSize()));
+    // cipher_type_ = KeyType(key_size, algorithm); // in initialization list
   
   } catch (const std::bad_alloc& e) {
     cout << "Key allocation failed: " << e.what() << endl;
-    key_ = nullptr;
     cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
+    key_ = nullptr;
   }
 }
 
-Key::~Key() {
-  if (cipher_type_.GetAlgorithm() != CipherAlgorithm::kError) {
-    delete[] key_;
+Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) : 
+    cipher_type_(KeySize::kError, CipherAlgorithm::kError), key_() {
+
+  switch (key_data->alg) {
+  case CALG_AES_128:
+    cipher_type_ = KeyType(KeySize::k128, CipherAlgorithm::kAES);
+    printf(" -- key start: %p\n", key);
+    printf("  - key size: %u\n", key_data->key_size);
+    printf("  - key end: %p\n", key + key_data->key_size);
+    key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
+    // TODO: key
+    break;
+
+  case CALG_AES_256:
+    cipher_type_ = KeyType(KeySize::k256, CipherAlgorithm::kAES);
+    // TODO: key
+    break;
+  
+  default:
+    // specified in the constructor initialization list
+    // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
+    key = nullptr;
+    break;
   }
 }
 
@@ -28,25 +48,18 @@ size_t Key::GetSize() const {
   return cipher_type_.GetSize();
 }
 
-unsigned char *Key::GetKey() const {
-  return key_;
+vector<unsigned char> Key::GetKey() const {
+  if (cipher_type_.GetAlgorithm() == CipherAlgorithm::kError) return vector<unsigned char>();
+
+  return *key_; // return a copy
 }
 
 bool Key::operator==(const Key &other) const {
-  size_t this_size = this->GetSize();
-    size_t other_size = other.GetSize();
 
-    if (this_size != other_size) return false;
+  if (this->GetSize() != other.GetSize()) return false;
 
-    unsigned char* key1 = this->GetKey();
-    unsigned char* key2 = other.GetKey();
+  return (this->GetKey() == other.GetKey());
 
-    for (size_t i = 0; i < this_size; i++) {
-      if (key1[i] != key2[i]) {
-        return false;
-      }
-    }
-    return true;
 }
 
 std::size_t KeyType::GetSize() const {
@@ -57,12 +70,11 @@ CipherAlgorithm KeyType::GetAlgorithm() const {
   return algorithm_;
 }
 
-size_t Key::KeyHashFunction::operator()(const Key &key) const
-{
-  unsigned char* key_data = key.GetKey();
+size_t Key::KeyHashFunction::operator()(const Key &key) const {
+  const vector<unsigned char> key_data = key.GetKey();
 
   size_t hash = std::hash<unsigned char>()(key_data[0]);
-  for (size_t i = 1; key.GetSize(); i++) {
+  for (size_t i = 1; key_data.size(); i++) {
     hash = hash ^ std::hash<unsigned char>()(key_data[i]);
   }
   return hash;

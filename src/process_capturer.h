@@ -2,6 +2,7 @@
 #define PROCESSCAPTURER_H
 #include <Windows.h>
 #include <vector>
+#include <tlhelp32.h>
 
 #include "program_result.h"
 
@@ -9,7 +10,15 @@ typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
 namespace process_manipulation {
 
-struct HeapInformation {
+class HeapInformation {
+ public:
+  HeapInformation(HEAPENTRY32 he) : 
+      id(he.th32HeapID), base_address(he.dwAddress), final_address(NULL), size(0){};
+
+  bool IsAddressInHeap(LPVOID pointer) {
+    return (ULONG_PTR) pointer <= (ULONG_PTR) final_address && (ULONG_PTR) pointer >= (ULONG_PTR) base_address;
+  };
+
   ULONG_PTR id;
   ULONG_PTR base_address;
   ULONG_PTR final_address;
@@ -31,7 +40,7 @@ class ProcessCapturer {
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
   error_handling::ProgramResult CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** buffer, SIZE_T* size);
 
-  void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address = 0x0);
+  void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address = 0x0);
 
   // Query
   DWORD GetPid() const;

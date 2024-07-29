@@ -88,20 +88,17 @@ int main(int argc, char *argv[]) {
     PrintLastError(TEXT("GETHEAP"));
   }
 
-  int j = 0;
+  int j = 1;
   for(const HeapInformation& heap : heaps) {
-    printf("============\nid: %d\n", j++);
+    printf("============\nid: %d/%d [@%08X | %08X]\n", j++, heaps.size(), heap.base_address, heap.final_address);
     unsigned char* buffer = NULL;
     SIZE_T size;
     ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer, &size);
     cout << "V2 heap copy result: " <<  pr2.GetResultInformation() << endl;
-    ProcessCapturer::PrintMemory(buffer + 0x1FCD0, 64, heap.base_address);
-
-    // Get rsaenh.dll base address (only in the structure strategy)
-    // Perform search
+    //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
 
     StructureScan scanner = StructureScan::StructureScan();
-    scanner.Scan(buffer, size);
+    scanner.Scan(buffer, heap);
 
     free(buffer); buffer = NULL;
   }

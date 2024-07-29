@@ -372,9 +372,7 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
 
-        HeapInformation heap_data;
-        heap_data.id = hl.th32HeapID;
-        heap_data.base_address = he.dwAddress;
+        HeapInformation heap_data = HeapInformation(he);
         ULONG_PTR next_address = he.dwAddress; // the first address of the following block
 
         unsigned int total_size = 0;
@@ -514,7 +512,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
             he.dwSize = sizeof(HEAPENTRY32);
             SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
             BOOL result = ReadProcessMemory(process_handle, (LPCVOID) he.dwAddress, (LPVOID) (buffer + position), he.dwBlockSize, &bytes_read);
-            if (result == 0) { // error
+            if (result == 0) { // read error
               //printf("Error copying at buffer position %d. Retrieved %u bytes, filling up to %u with FF\n", position, bytes_read, he.dwBlockSize - 1);
               //printf("Windows error: %d\n", GetLastError()); 
               nullify = true;
@@ -533,7 +531,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
         } while ( Heap32Next(&he) && position < heap_to_copy.size);
         // && position < heap_to_copy.size
-        // if we wanted not to consider the top chunk
+        // if we want not to consider the top chunk
       }
 
       hl.dwSize = sizeof(HEAPLIST32);
@@ -553,11 +551,11 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
   return func_result;
 }
 
-void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR start_address) {
+void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address) {
   printf("            0           4           8           C");
   for (unsigned long i = 0; i < num_of_bytes; i++) {
     if (i % 16 == 0) {
-      printf("\n [%08X] ", i + (ULONG_PTR) start_address);
+      printf("\n [%08X] ", i + (ULONG_PTR) starting_visual_address);
     }
     printf("%02X ", buffer[i]);
   } printf("\n");

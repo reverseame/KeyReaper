@@ -2,6 +2,10 @@
 #define KEY_H
 
 #include <cstddef>
+#include <memory>
+#include <vector>
+#include "scanners.h"
+
 namespace key_scanner {
 
 enum class KeySize : size_t { kError = 0, k128 = 16, k256 = 32 };
@@ -12,8 +16,8 @@ class KeyType {
   KeyType(KeySize key_size, CipherAlgorithm algorithm) : 
       key_size_(key_size), algorithm_(algorithm) {};
   
-  [[nodiscard]] size_t GetSize() const;
-  [[nodiscard]] CipherAlgorithm GetAlgorithm() const;
+  size_t GetSize() const;
+  CipherAlgorithm GetAlgorithm() const;
 
  private:
   KeySize key_size_;
@@ -22,11 +26,11 @@ class KeyType {
 
 class Key {
  public:
-  Key(KeySize key_size, CipherAlgorithm algorithm);
-  ~Key();
+  Key(KeySize key_size, CipherAlgorithm algorithm, unsigned char* key);
+  Key(cryptoapi::key_data_s* key_data, unsigned char* key);
 
-  [[nodiscard]] size_t GetSize() const;
-  [[nodiscard]] unsigned char* GetKey() const;
+  size_t GetSize() const;
+  std::vector<unsigned char> GetKey() const;
 
   bool operator==(const Key& other) const;
 
@@ -36,9 +40,9 @@ class Key {
 
  private:
   KeyType cipher_type_;
-  unsigned char* key_;
+  std::unique_ptr<std::vector<unsigned char>> key_;
 };
 
 } // namespace key_scanner
 
-#endif
+#endif  // KEY_H

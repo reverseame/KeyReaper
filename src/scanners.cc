@@ -5,28 +5,14 @@
 
 #include "key.h"
 #include "scanners.h"
+#include "process_capturer.h"
 
 using namespace std;
+using ProcessCapturer = process_manipulation::ProcessCapturer;
+using HeapInformation = process_manipulation::HeapInformation;
+
 
 namespace key_scanner {
-
-#define CPGENKEY_ADDRESS 0x000050C0u
-#define CPDERIVEKEY_ADDRESS 0x0001AD90u
-#define CPDESTROYKEY_ADDRESS 0x000086C0u
-#define CPSETKEYPARAM_ADDRESS 0x0001C770u
-#define CPGETKEYPARAM_ADDRESS 0x000098C0u
-#define CPEXPORTKEY_ADDRESS 0x00004C40u
-#define CPIMPORTKEY_ADDRESS 0x00006290u
-#define CPENCRYPT_ADDRESS 0x00019880u
-#define CPDECRYPT_ADDRESS 0x0000A500u
-#define CPDUPLICATEKEY_ADDRESS 0x0001B5C0u
-
-const vector<unsigned int> cryptoapi_offsets = {
-  CPGENKEY_ADDRESS, CPDERIVEKEY_ADDRESS, CPDESTROYKEY_ADDRESS, 
-  CPSETKEYPARAM_ADDRESS, CPGETKEYPARAM_ADDRESS, CPEXPORTKEY_ADDRESS,
-  CPIMPORTKEY_ADDRESS, CPENCRYPT_ADDRESS, CPDECRYPT_ADDRESS,
-  CPDUPLICATEKEY_ADDRESS
-};
 
 void StrategyBuilder::AddStructureScan() {
   do_structure_scan_ = true;
@@ -54,7 +40,7 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> StrategyBuilder::GetScanners() {
 }
 
 static HMODULE cryptoapi_base_address = NULL;
-std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, size_t buffer_size) const {
+std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
   unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
   
@@ -66,42 +52,74 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
 
     printf("rsaenh.dll 0x%08X\n", (void*) cryptoapi_base_address);
 
+    // Precomputed offsets vs GetProcAddress
     //FARPROC cgk_address = GetProcAddress(cryptoapi_base_address, "CryptGenKey");
-    vector<unsigned int> local_offsets = cryptoapi_offsets;
+    vector<unsigned int> local_offsets = cryptoapi::cryptoapi_offsets;
     for (auto &offset : local_offsets) {
       offset += (unsigned int) cryptoapi_base_address;
     }
 
     unsigned int pos = 0;
-    unsigned char* byte_pattern = (unsigned char*) malloc(local_offsets.size() * sizeof(void*));
+    size_t pattern_size = local_offsets.size() * sizeof(void*);
+    unsigned char* byte_pattern = (unsigned char*) malloc(pattern_size);
     for (auto& offset : local_offsets) {
-      if (sizeof(void*) == 4) { // 32 bit
-        ULONG32 reversed = _byteswap_ulong(offset);
-        memcpy(byte_pattern + pos, &offset, sizeof(ULONG32)); // TODO: check why the search is not working
-        pos += 4;
-      } else if (sizeof(void*) == 8) { // 64 bit
-        ULONG64 reversed = _byteswap_uint64(offset);
-        memcpy(byte_pattern + pos, &reversed, sizeof(ULONG64));
-        pos += 8;
-      } else {
-        printf("Fatal error\n");
-      }
+      memcpy(byte_pattern + pos, &offset, sizeof(void*));
+      pos += sizeof(void*);
     }
 
     /*
     for (unsigned int i = 0; i < pos; i++) {
       printf("%02hhX ", byte_pattern[i]);
       if (i % 16 == 15) { printf("\n"); }
-    } printf("\n");*/
+    } printf("\n");
+    */    
 
-    auto searcher = boyer_moore_horspool_searcher(byte_pattern, byte_pattern + 4);
-    unsigned char* search_result = search(input_buffer, input_buffer + buffer_size, searcher);
-    printf("Finished scan: %p\n", search_result);
+    auto searcher = boyer_moore_horspool_searcher(byte_pattern, byte_pattern + pattern_size);
+    //unsigned char* search_result = search(input_buffer, input_buffer + buffer_size, searcher);
 
-    if (search_result != input_buffer + buffer_size) {
-        printf("Pattern found at position: 0x%p\n", (search_result - input_buffer));
-    } else {
-        printf("Pattern not found\n");
+    size_t match_count = 0;
+    unsigned char* search_start = input_buffer;
+    unsigned char* search_result;
+
+    while ((search_result = search(search_start, input_buffer + heap_info.size, searcher)) != input_buffer + heap_info.size) {
+      unsigned int position = search_result - input_buffer;
+      printf("Pattern found at position: %td\n", position);
+      printf(" Search result: [%p]\n", search_result);
+      ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position);
+
+      match_count++;
+      // TODO follow structure pointers to key
+      cryptoapi::HCRYPTKEY* h_crypt_key = reinterpret_cast<cryptoapi::HCRYPTKEY*>(search_result);
+      if ( heap_info.IsAddressInHeap(h_crypt_key->magic) ) {
+        printf("Address out of this heap\n");
+
+      } else {
+        printf("  >  KCRYPTKEY magic: %08X\n", h_crypt_key->magic);
+        ULONG_PTR heap_offset = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
+        printf("     XORED: %08X\n", heap_offset);
+        heap_offset -= (ULONG_PTR) heap_info.base_address; // offset in relation to the buffer
+        cryptoapi::magic_s* magic_struct_ptr = (cryptoapi::magic_s*) ((ULONG_PTR) heap_offset + (ULONG_PTR) input_buffer); // Why does it fail with the structure
+        ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
+
+        heap_offset = ((ULONG_PTR) magic_struct_ptr->key_data) - heap_info.base_address;
+        cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) (heap_offset + (ULONG_PTR) input_buffer);
+        ProcessCapturer::PrintMemory((unsigned char*) key_data, 32);
+
+        // TODO: cambiar key a vector en lugar de reserva dinámica (más fácil?)
+        // Pedirle al gpt que convierta la tabla (como si es en html) a defines https://learn.microsoft.com/en-us/windows/win32/seccrypto/alg-id
+        // Añadir una función al namespace de cryptoapi para la traducción de las macros de windows a mi formato propio (+portabilidad)
+        //Key key = Key()
+        
+      } 
+
+      // TODO add the key to the list
+      //found_keys.insert();
+
+      search_start = search_result + pattern_size;
+    }
+
+    if (match_count == 0) {
+      printf("Pattern not found\n");
     }
 
     free(byte_pattern);
@@ -112,7 +130,7 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
   return found_keys;
 }
 
-std::unordered_set<Key, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, size_t buffer_size) const {
+std::unordered_set<Key, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
   return std::unordered_set<Key, Key::KeyHashFunction>();
 }
 
