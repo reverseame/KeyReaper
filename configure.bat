@@ -1,20 +1,33 @@
 @echo off
 
-set CMAKE_ARCH=Win32
-
 :: Create build directory if it doesn't exist
 if not exist "build" (
     mkdir build
 )
 
-:: Navigate into the build directory
 cd build
 
-:: Run CMake to configure the project
-cmake -A %CMAKE_ARCH% "-DCMAKE_TOOLCHAIN_FILE=C:/Users/Leon/Documents/vcpkg/scripts/buildsystems/vcpkg.cmake" ..
+if not exist "build32" (
+    mkdir build32
+)
 
-:: Optionally build the project
+if not exist "build64" (
+    mkdir build64
+)
+
+:: 32 bit build
+echo [!] Creating 32 bit build
+cd build32
+:: Run CMake to configure the project
+cmake -G "Visual Studio 17 2022" -A Win32 ../..
 cmake --build .
+cd ..
+
+echo [!] Creating 64 bit build
+cd build64
+cmake -G "Visual Studio 17 2022" -A x64 ../..
+cmake --build .
+cd ../..
 
 echo ---
 echo [!] Output files in build/bin
