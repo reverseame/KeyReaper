@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
   printf("All found keys: \n");
   int i = 0;
   for (auto &key : keys) {
-    ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize(), ++i);
+    ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize(), i*=(key.GetSize() / 16));
   }
 
   return 0;

@@ -11,6 +11,9 @@
 #include <codecvt>
 #pragma comment(lib, "advapi32.lib") // crypto api
 
+#include "cryptoapi.h"
+using namespace key_scanner;
+
 using namespace std;
 
 namespace fs = std::filesystem;
@@ -43,7 +46,7 @@ int GetHeap() {
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid, hl.th32HeapID )) {
-        printf( "\nHeap ID: %d\n", hl.th32HeapID );
+        printf( "\nHeap ID: %zd\n", hl.th32HeapID );
         unsigned int total_size = 0;
         do {
           total_size += he.dwBlockSize;
@@ -121,8 +124,8 @@ int wmain(int argc, wchar_t *argv[])
     const size_t key_size = len * sizeof(key_str[0]); // size in bytes
 
     printf("Key: %s\n", alternate_key);
-    printf("Key len: %#x, %d\n", alt_len, alt_len);
-    printf("Key size: %#x | %d\n", key_size, key_size);
+    printf("Key len: %zx, %zd\n", alt_len, alt_len);
+    printf("Key size: %zx | %zd\n", key_size, key_size);
     printf("Input path: %S\n", path);
    // printf("Output File: %S\n", filename2);
     printf("----\n");
@@ -174,34 +177,36 @@ int wmain(int argc, wchar_t *argv[])
     }
 
     // PRINTING ALL STRUCTURE DATA (pointers)
-    int *ptr = (int*) hKey;
-    printf("HCRYPTKEY:      %p -> %p\n", &hKey, (void*) hKey);
-    printf("CPGenKey:       %p   [%p]\n", (void*) *(ptr+0), (void*) (ptr+0));
-    printf("CPDeriveKey:    %p   [%p]\n", (void*) *(ptr+1), (void*) (ptr+1));
-    printf("CPDestroyKey:   %p   [%p]\n", (void*) *(ptr+2), (void*) (ptr+2));
-    printf("CPSetKeyParam:  %p   [%p]\n", (void*) *(ptr+3), (void*) (ptr+3));
-    printf("CPGetKeyParam:  %p   [%p]\n", (void*) *(ptr+4), (void*) (ptr+4));
-    printf("CPExportKey:    %p   [%p]\n", (void*) *(ptr+5), (void*) (ptr+5));
-    printf("CPImportKey:    %p   [%p]\n", (void*) *(ptr+6), (void*) (ptr+6));
-    printf("CPEncrypt:      %p   [%p]\n", (void*) *(ptr+7), (void*) (ptr+7));
-    printf("CPDecrypt:      %p   [%p]\n", (void*) *(ptr+8), (void*) (ptr+8));
-    printf("CPDuplicateKey: %p   [%p]\n", (void*) *(ptr+9), (void*) (ptr+9));
-    printf("hCryptProv:     %p   [%p]\n", (void*) *(ptr+10), (void*) (ptr+10));
-    printf("magic:          %p   [%p]\n", (void*) *(ptr+11), (void*) (ptr+11));
-    UINT_PTR magic_xor = (UINT_PTR) *(ptr + 11);
-    magic_xor = magic_xor ^ 0xE35A172C;
-    void **magic_s = (void**) magic_xor;
-    printf("*magic:         %p -> %p\n", (void*) magic_s, (void*) *magic_s);
-    int key_data_s = *((int*) magic_s);
-    int *key_struct = (int*) key_data_s;
-    printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_struct);
-    printf("Key data:       %p\n", (void*) *(key_struct+0));
-    printf("Algorithm:      %p\n", (void*) *(key_struct+1));
-    printf("Flags:          %p\n", (void*) *(key_struct+2));
-    printf("Key size:       %p\n", (void*) *(key_struct+3));
-    printf("Key ptr:        %p -> %p\n", (void*) (key_struct+4), (void*) *(key_struct+4));
+    uintptr_t* ptr = (uintptr_t*) hKey;
+    cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) hKey;
 
-    char *key_bytes = (char*) *(key_struct+4);
+    printf("HCRYPTKEY:      %p -> %p\n", hCryptKey, ptr);
+    printf("CPGenKey:       %p   [%p]\n", hCryptKey->CPGenKey, &(hCryptKey->CPGenKey));
+    printf("CPDeriveKey:    %p   [%p]\n", hCryptKey->CPDeriveKey, &(hCryptKey->CPDeriveKey));
+    printf("CPDestroyKey:   %p   [%p]\n", hCryptKey->CPDestroyKey, &(hCryptKey->CPDestroyKey));
+    printf("CPSetKeyParam:  %p   [%p]\n", hCryptKey->CPSetKeyParam, &(hCryptKey->CPSetKeyParam));
+    printf("CPGetKeyParam:  %p   [%p]\n", hCryptKey->CPGetKeyParam, &(hCryptKey->CPGetKeyParam));
+    printf("CPExportKey:    %p   [%p]\n", hCryptKey->CPExportKey, &(hCryptKey->CPExportKey));
+    printf("CPImportKey:    %p   [%p]\n", hCryptKey->CPImportKey, &(hCryptKey->CPImportKey));
+    printf("CPEncrypt:      %p   [%p]\n", hCryptKey->CPEncrypt, &(hCryptKey->CPEncrypt));
+    printf("CPDecrypt:      %p   [%p]\n", hCryptKey->CPDecrypt, &(hCryptKey->CPDecrypt));
+    printf("CPDuplicateKey: %p   [%p]\n", hCryptKey->CPDuplicateKey, &(hCryptKey->CPDuplicateKey));
+    printf("hCryptProv:     %p   [%p]\n", (void*) hCryptKey->hCryptProv, &(hCryptKey->hCryptProv));
+    printf("magic:          %p   [%p]\n", hCryptKey->magic, &(hCryptKey->magic));
+
+    UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
+    magic_xor = magic_xor ^ MAGIC_CONSTANT;
+    cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
+    cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) ms->key_data;
+
+    printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_data);
+    printf("Unknown ptr:    %p\n", key_data->unknown);
+    printf("Algorithm:      %08X\n", key_data->alg);
+    printf("Flags:          %08X\n", key_data->flags);
+    printf("Key size:       %08X\n", key_data->key_size);
+    printf("Key ptr:        %p\n", key_data->key_bytes);
+
+    char* key_bytes = (char*) key_data->key_bytes;
     printf("\nKEY [@ %p]\n", key_bytes);
     for (int i = 0; i < 16; i++) {
         

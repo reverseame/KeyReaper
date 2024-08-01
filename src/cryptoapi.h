@@ -18,7 +18,11 @@ namespace cryptoapi {
 #define CPDECRYPT_ADDRESS 0x0000A500u
 #define CPDUPLICATEKEY_ADDRESS 0x0001B5C0u
 
+#if _WIN64
+#define MAGIC_CONSTANT 0xE35A172CD96214A0
+#elif _WIN32
 #define MAGIC_CONSTANT 0xE35A172C
+#endif
 
 const std::vector<unsigned int> cryptoapi_offsets = {
   CPGENKEY_ADDRESS, CPDERIVEKEY_ADDRESS, CPDESTROYKEY_ADDRESS, 
