@@ -214,12 +214,7 @@ int wmain(int argc, wchar_t *argv[])
         printf("%02x ",  (*(key_bytes+i)) & 255);
     }; printf("\n");
     
-
-    //printf("*magic2:         %p\n", *(int*)((uintptr_t)(ptr+11)^(uintptr_t)0xE35A172C));
-
     printf("[+] CryptDeriveKey Success\n");
-
-    GetHeap();
     printf("ENCRYPTING...\n");
 
     // Iterate over input folder
