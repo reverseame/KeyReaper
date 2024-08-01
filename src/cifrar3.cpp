@@ -197,6 +197,7 @@ int wmain(int argc, wchar_t *argv[])
     UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
     magic_xor = magic_xor ^ MAGIC_CONSTANT;
     cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
+    printf("magic xor:      %p -> %p\n", ms, ms->key_data);
     cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) ms->key_data;
 
     printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_data);
