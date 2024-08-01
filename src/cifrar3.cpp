@@ -23,7 +23,7 @@ namespace fs = std::filesystem;
 #define OUT_CHUNK_SIZE (IN_CHUNK_SIZE * 2) // an output buffer (for encryption) must be twice as big
 
 #include <tlhelp32.h>
-int GetHeap() {
+int PrintHeapInformation() {
   printf("Getting heap\n");
 
   DWORD pid = GetCurrentProcessId();
@@ -215,6 +215,8 @@ int wmain(int argc, wchar_t *argv[])
     }; printf("\n");
     
     printf("[+] CryptDeriveKey Success\n");
+
+    PrintHeapInformation();
     printf("ENCRYPTING...\n");
 
     // Iterate over input folder
