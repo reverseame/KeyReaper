@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_SYSTEM_NAME Windows)
-#set(CMAKE_GENERATOR_PLATFORM Win32)
 project(Craperv2)
 
 set(MSVC True)

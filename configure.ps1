@@ -10,11 +10,11 @@ Set-Location "build"
 
 if ($build -eq 0 -or $build -eq 32) {
     # 32 bit build
+    Write-Host "[!] Creating 32 bit build"
     if (-not (Test-Path -Path "build32")) {
         New-Item -ItemType Directory -Path "build32"
     }
 
-    Write-Host "[!] Creating 32 bit build"
     Set-Location "build32"
     # Run CMake to configure the project
     cmake -G "Visual Studio 17 2022" -A Win32 ../..
