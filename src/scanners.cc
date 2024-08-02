@@ -85,7 +85,7 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
     while ((search_result = search(search_start, input_buffer + heap_info.size, searcher)) != input_buffer + heap_info.size) {
       uintptr_t position = search_result - input_buffer;
       //printf("Pattern found at position: d%td\n", position);
-      printf(" Search result: [%p]\n", search_result);
+      printf(" HCRYPTKEY structure found at [%p]\n", search_result);
       ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position);
 
       match_count++;
@@ -106,7 +106,7 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
 
         heap_offset = ((ULONG_PTR) key_data->key_bytes - (ULONG_PTR) heap_info.base_address);
         Key key = Key(key_data, (unsigned char*) ((ULONG_PTR) input_buffer + heap_offset));
-        printf("     Key found at 0x%p\n", key_data->key_bytes);
+        printf("   * Key found at 0x%p\n", key_data->key_bytes);
 
         ProcessCapturer::PrintMemory((unsigned char*) ((ULONG_PTR) input_buffer + heap_offset), 16, heap_info.base_address + heap_offset);
         found_keys.insert(key);

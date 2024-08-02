@@ -89,9 +89,9 @@ int main(int argc, char *argv[]) {
   }
 
   unordered_set<Key, Key::KeyHashFunction> keys;
-  int j = 1;
+  unsigned int heap_counter = 1;
   for(const HeapInformation& heap : heaps) {
-    printf("============\nid: %d/%d [@%08X | %08X]\n", j++, heaps.size(), heap.base_address, heap.final_address);
+    printf("============\nid: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.base_address, (void*) heap.final_address);
     unsigned char* buffer = NULL;
     SIZE_T size;
     ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer, &size);
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 
   printf("\n=======================\n");
   printf("All found keys: \n");
-  int i = 0;
+  size_t i = 0;
   for (auto &key : keys) {
     ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize(), i*=(key.GetSize() / 16));
   }

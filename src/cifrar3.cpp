@@ -16,7 +16,7 @@ using namespace key_scanner;
 
 using namespace std;
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 
 #define AES_KEY_SIZE 16
 #define IN_CHUNK_SIZE (AES_KEY_SIZE * 10) // a buffer must be a multiple of the key size
@@ -47,12 +47,12 @@ int PrintHeapInformation() {
 
       if( Heap32First(&he, pid, hl.th32HeapID )) {
         printf( "\nHeap ID: %zd\n", hl.th32HeapID );
-        unsigned int total_size = 0;
+        size_t total_size = 0;
         do {
           total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
         } while( Heap32Next(&he) );
-        printf("Size of heap: %u\n", total_size);
+        printf("Size of heap: %zu\n", total_size);
       }
       hl.dwSize = sizeof(HEAPLIST32);
     } while (Heap32ListNext( hHeapSnap, &hl ));
@@ -65,6 +65,7 @@ int PrintHeapInformation() {
   printf("Self PID: %u\n", pid);
   return func_result;
 }
+
 int GetHeaps() {
   HANDLE proc_heap = GetProcessHeap();
   if (proc_heap == NULL) return -1;
@@ -73,8 +74,8 @@ int GetHeaps() {
   return 0;
 }
 
-std::vector<std::string> retrieveTextFiles(const std::string& folderPath) {
-    std::vector<std::string> fileNames;
+vector<string> retrieveTextFiles(const wstring& folderPath) {
+    vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
         if (entry.is_regular_file() && entry.path().extension() == ".txt") {
             fileNames.push_back(entry.path().filename().string());
@@ -83,8 +84,8 @@ std::vector<std::string> retrieveTextFiles(const std::string& folderPath) {
     return fileNames;
 }
 
-std::vector<std::string> retrieveEncodedFiles(const std::string& folderPath) {
-    std::vector<std::string> fileNames;
+vector<string> retrieveEncodedFiles(const string& folderPath) {
+    vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
         if (entry.is_regular_file() && entry.path().extension() == ".enc") {
             fileNames.push_back(entry.path().filename().string());
@@ -93,29 +94,18 @@ std::vector<std::string> retrieveEncodedFiles(const std::string& folderPath) {
     return fileNames;
 }
 
-// Función para convertir un wchar_t* a std::string
-std::string wcharToString(const wchar_t* wstr) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    return converter.to_bytes(wstr);
-}
-
 //params: <path> <is decrypt mode> <key>
-int wmain(int argc, wchar_t *argv[])
-{
+int main(int argc, char* argv[]) {
 
-    wchar_t default_path[] = L"C:\\TEST\\";
-    wchar_t *path = default_path;
-
-    std::string folderPathStr = wcharToString(path);
-
-    //std::vector<std::string> textFiles;
+    wstring default_path = L"C:\\TEST\\";
+    wstring path = default_path;
 
     const char *alternate_key = "password";
     wchar_t default_key[] = L"clave";
     wchar_t *key_str = default_key;
 
     //BOOL isDecrypt = FALSE;
-    //std::wstring decrypt = argv[2];
+    //wstring decrypt = argv[2];
     printf("Encrypt mode\n");
 
     const size_t alt_len = strlen(alternate_key);
@@ -123,11 +113,16 @@ int wmain(int argc, wchar_t *argv[])
     const size_t alt_size = alt_len * sizeof(alternate_key[0]);
     const size_t key_size = len * sizeof(key_str[0]); // size in bytes
 
+    if (alt_size > UINT_MAX) {
+        printf("Integer overflow when obtaining alt_size. Data is too big?\n"); 
+        return -1;
+    }
+    const DWORD alt_size_dw = (DWORD) alt_size;
+
     printf("Key: %s\n", alternate_key);
     printf("Key len: %zx, %zd\n", alt_len, alt_len);
     printf("Key size: %zx | %zd\n", key_size, key_size);
-    printf("Input path: %S\n", path);
-   // printf("Output File: %S\n", filename2);
+    std::wcout << "Input path: " << path << endl;
     printf("----\n");
 
     DWORD dwStatus = 0;
@@ -158,7 +153,7 @@ int wmain(int argc, wchar_t *argv[])
     }
 
     // hashes the key (for greater data entropy) and stores it in the hash object
-    if (!CryptHashData(hHash, (BYTE*)alternate_key, alt_size, 0)) {
+    if (!CryptHashData(hHash, (BYTE*)alternate_key, alt_size_dw, 0)) {
         DWORD err = GetLastError();
         printf("CryptHashData Failed : %#x\n", err);
         system("pause");
@@ -220,13 +215,13 @@ int wmain(int argc, wchar_t *argv[])
     printf("ENCRYPTING...\n");
 
     // Iterate over input folder
-    std::vector<std::string> textFiles = retrieveTextFiles(folderPathStr);
-    for (const std::string& filename : textFiles) {
+    vector<string> textFiles = retrieveTextFiles(path);
+    for (const string& filename : textFiles) {
         
-        std::wstring wFilename(filename.begin(), filename.end()); // Convertir el nombre de archivo a std::wstring
+        wstring wFilename(filename.begin(), filename.end()); // Convertir el nombre de archivo a wstring
         wFilename = path + wFilename; // Pasar el path
         const wchar_t* input = wFilename.c_str(); // Variable const wchar_t* para el nombre de archivo de entrada
-        std::wstring wOutputFilename = wFilename; // Crear una copia de wFilename para el nombre de archivo de salida
+        wstring wOutputFilename = wFilename; // Crear una copia de wFilename para el nombre de archivo de salida
         wOutputFilename += L".enc"; // Agregar la extensión ".dec" al nombre de archivo de salida
 
         const wchar_t* output = wOutputFilename.c_str(); // Variable const wchar_t* para el nombre de archivo de salida

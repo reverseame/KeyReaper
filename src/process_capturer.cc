@@ -11,11 +11,11 @@ using StructureScanner = key_scanner::StructureScan;
 using Key = key_scanner::Key;
 
 #include <iostream>
-unsigned long show_module(MEMORY_BASIC_INFORMATION info) {
-    unsigned long usage = 0;
+SIZE_T show_module(MEMORY_BASIC_INFORMATION info) {
+    SIZE_T usage = 0;
 
     printf(" Allocation base: 0x%p\n", (void*) info.AllocationBase);
-    printf(" Region size: 0x%x\n", info.RegionSize);
+    printf(" Region size: 0x%zx\n", info.RegionSize);
     printf(" Last region address: 0x%p\n", (void*)(info.RegionSize + (ULONG_PTR) info.AllocationBase));
 
 
@@ -302,7 +302,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
   if (result == 0) {
     { // TODO: only verbose mode
-      printf("Bytes read: %u\n", *bytes_read);
+      printf("Bytes read: %zu\n", *bytes_read);
       printf("Base address:      0x%p\n", (void*) start);
       ULONG_PTR last_address_read = (ULONG_PTR) start + *bytes_read;
       printf("Last address read: 0x%p\n", (void*) last_address_read);
@@ -340,8 +340,8 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     }
   }
 
-  printf("Buffer size: %+10u\n", size);
-  printf("Bytes read:  %+10u\n", *bytes_read);
+  printf("Buffer size: %+10zu\n", size);
+  printf("Bytes read:  %+10zu\n", *bytes_read);
   CloseHandle(process_handle);
   return func_result;
 }
@@ -375,7 +375,7 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
         HeapInformation heap_data = HeapInformation(he);
         ULONG_PTR next_address = he.dwAddress; // the first address of the following block
 
-        unsigned int total_size = 0;
+        SIZE_T total_size = 0;
         do {
           total_size += he.dwBlockSize;
           he.dwSize = sizeof(HEAPENTRY32);
@@ -420,9 +420,9 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
         heaps->push_back(heap_data);
 
         printf("======\n");
-        printf("Heap ID: %d\n", hl.th32HeapID );
+        printf("Heap ID: %zd\n", hl.th32HeapID );
         printf("Base address: 0x%p\n", (void*) heap_data.base_address );
-        printf("Size of heap: %u\n", total_size);
+        printf("Size of heap: %zu\n", total_size);
         printf("Final address: 0x%p\n", (void*) heap_data.final_address);
         printf("\n");
       }
@@ -488,7 +488,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
       if (hl.th32HeapID != heap_to_copy.id) { continue; }
       found = true;
-      printf("Total size: %u\n", heap_to_copy.size);
+      printf("Total size: %zu\n", heap_to_copy.size);
 
       buffer = (unsigned char*) calloc(sizeof(unsigned char), heap_to_copy.size);
       if (buffer == NULL) {
@@ -499,7 +499,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
         // TODO: instead of checking each heap block, check the pages within
         //       this could reveal pages hiddenly used with old valid addresses?
         do {
-          printf("[%u]\r", position);
+          printf("[%zu]\r", position);
           bool nullify = false;
           SIZE_T bytes_read = !NULL;
 
@@ -537,7 +537,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
       hl.dwSize = sizeof(HEAPLIST32);
     } while (Heap32ListNext( hHeapSnap, &hl) && !found);
 
-    printf("Failed reads: %u\n", failed_reads);
+    printf("Failed reads: %zu\n", failed_reads);
     *size = position;
     *output_buffer = buffer;
     CloseHandle(process_handle);
@@ -553,9 +553,9 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
 void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address) {
   printf("            0           4           8           C");
-  for (unsigned long i = 0; i < num_of_bytes; i++) {
+  for (size_t i = 0; i < num_of_bytes; i++) {
     if (i % 16 == 0) {
-      printf("\n [%08X] ", i + (ULONG_PTR) starting_visual_address);
+      printf("\n [%p] ", (void*) (i + (ULONG_PTR) starting_visual_address));
     }
     printf("%02X ", buffer[i]);
   } printf("\n");
