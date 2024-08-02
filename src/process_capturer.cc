@@ -6,7 +6,8 @@
 #include "key_scanner.h"
 #include "process_capturer.h"
 using ProgramResult = error_handling::ProgramResult;
-using ResultType = ProgramResult::ResultType;
+using ErrorResult = error_handling::ErrorResult;
+using OkResult = error_handling::OkResult;
 using StructureScanner = key_scanner::StructureScan;
 using Key = key_scanner::Key;
 
@@ -92,6 +93,8 @@ namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
     : pid_(pid), suspended_(false) {
+
+      ProgramResult pr = QueryPrivilegeStatus();
   
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
@@ -101,32 +104,30 @@ ProcessCapturer::ProcessCapturer(int pid)
 ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   if (!IsProcessAlive()) {
-    return ProgramResult(ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
+    return ErrorResult(PROC_NOT_ALIVE_ERR_MSG);
   }
 
   if (!force_pause && IsSuspended()) {
-    return ProgramResult(ResultType::kError, PROC_SUSP_ERR_MSG);
+    return ErrorResult(PROC_SUSP_ERR_MSG);
   }
 
   printf("[i] Creating process snapshot\n");
   HANDLE thread_snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (thread_snapshot == INVALID_HANDLE_VALUE) {
-    return ProgramResult(ResultType::kError, THREAD_SNAP_ERR_MSG);
+    return ErrorResult(THREAD_SNAP_ERR_MSG);
   }
 
   // Errors will overwrite this variable. If there are not, the program will return this
-  ProgramResult func_result = ProgramResult(ResultType::kOk, 
-                                            "All process' threads paused");
+  ProgramResult func_result = OkResult("All process' threads paused");
 
   THREADENTRY32 thread_entry; 
   thread_entry.dwSize = sizeof(THREADENTRY32);
   BOOL copied = Thread32First(thread_snapshot, &thread_entry);
   if (!copied) {
-    func_result = ProgramResult(ResultType::kError, THREAD_SNAP_FIRST_ERR_MSG);
+    func_result = ErrorResult(THREAD_SNAP_FIRST_ERR_MSG);
 
   } else if (GetLastError() == ERROR_NO_MORE_FILES) {
-    func_result = ProgramResult(ResultType::kError, 
-                                THREAD_SNAP_NO_INFO_ERR_MSG);
+    func_result = ErrorResult(THREAD_SNAP_NO_INFO_ERR_MSG);
 
   } else {
     int n_threads = 0;
@@ -137,16 +138,14 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
         HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, 
                                           thread_entry.th32ThreadID);
         if (thread_handle == NULL) {
-          func_result = ProgramResult(ResultType::kError, 
-                                      THREAD_OPEN_ERR_MSG);
+          func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
           break;
         }
               
         DWORD suspension_count = SuspendThread(thread_handle);
         if (suspension_count == (DWORD) - 1) {
           // TODO include exact number in error text with a formatter
-          func_result = ProgramResult(ResultType::kError, 
-                                      THEAD_MAX_SUS_COUNT_ERR_MSG);
+          func_result = ErrorResult(THEAD_MAX_SUS_COUNT_ERR_MSG);
           break;
         }
         printf("[%i] Suspend count: %i\n", n_threads, suspension_count + 1);
@@ -174,31 +173,30 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
   printf("Resuming process\n");
 
   if (!IsProcessAlive()) {
-    return ProgramResult(ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
+    return ErrorResult(PROC_NOT_ALIVE_ERR_MSG);
   }
 
   if (!force_resume && !IsSuspended()) {
-    return ProgramResult(ResultType::kError, PROC_STILL_RUN_ERR_MSG);
+    return ErrorResult(PROC_STILL_RUN_ERR_MSG);
   }
 
   printf("[i] Creating process snapshot\n");
   HANDLE handle_thread_snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (handle_thread_snap == INVALID_HANDLE_VALUE) {
-    return ProgramResult(ResultType::kError, THREAD_SNAP_ERR_MSG);
+    return ErrorResult(THREAD_SNAP_ERR_MSG);
   }
 
   // Errors will overwrite this variable. If there are not, the program will return this
-  ProgramResult func_result = ProgramResult(ResultType::kOk, 
-                                            "All process' threads resumed");
+  ProgramResult func_result = OkResult("All process' threads resumed");
 
   THREADENTRY32 thread_entry;
   thread_entry.dwSize = sizeof(THREADENTRY32);
   BOOL copied = Thread32First(handle_thread_snap, &thread_entry);
   if (!copied) {
-    func_result = ProgramResult(ResultType::kError, THREAD_SNAP_FIRST_ERR_MSG);
+    func_result = ErrorResult(THREAD_SNAP_FIRST_ERR_MSG);
 
   } else if (GetLastError() == ERROR_NO_MORE_FILES) {
-    func_result = ProgramResult(ResultType::kError, THREAD_SNAP_NO_INFO_ERR_MSG);
+    func_result = ErrorResult(THREAD_SNAP_NO_INFO_ERR_MSG);
 
   } else {
     int n_threads = 0;
@@ -208,7 +206,7 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
 
         HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_entry.th32ThreadID);
         if (thread_handle == NULL) {
-          func_result = ProgramResult(ResultType::kError, THREAD_OPEN_ERR_MSG);
+          func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
           break;
         }
 
@@ -218,7 +216,7 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
           suspension_count = ResumeThread(thread_handle) - 1; // ResumeThread returns the PREVIOUS pause count
           if (suspension_count == (DWORD) - 1) {
             // TODO include exact number in error text with a formatter
-            func_result = ProgramResult(ResultType::kError, THREAD_RESUME_ERR_MSG);
+            func_result = ErrorResult(THREAD_RESUME_ERR_MSG);
             break;
           }
         } while (suspension_count > 0);
@@ -240,20 +238,20 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
 
 ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 
-  ProgramResult func_result = ProgramResult(ResultType::kOk, "Process terminated");
+  ProgramResult func_result = OkResult("Process terminated");
 
   if (!IsProcessAlive()) {
-    func_result = ProgramResult(ResultType::kError, PROC_NOT_ALIVE_ERR_MSG);
+    func_result = ErrorResult(PROC_NOT_ALIVE_ERR_MSG);
 
   } else {
     HANDLE proc_handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid_);
     if (proc_handle == NULL) {
-      func_result = ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
+      func_result = ErrorResult(PROC_OPEN_ERR_MSG);
 
     } else {
       bool success = TerminateProcess(proc_handle, exit_code);
       if (!success) {
-        func_result = ProgramResult(ResultType::kError, "Could not terminate the process");
+        func_result = ErrorResult("Could not terminate the process");
       }
     }
 
@@ -293,10 +291,10 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
 
   if (process_handle == NULL) {
-    return ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
+    return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
-  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap data retrieved");
+  ProgramResult func_result = OkResult("Heap data retrieved");
 
   *bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
   BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
@@ -318,7 +316,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     printf(" FAULTING ADDRESS: %p\n", starting_address);
     if (info_bytes == ERROR_INVALID_PARAMETER && info_bytes != sizeof(info)) {
       printf(" Address above the valid address space\n");
-      func_result = ProgramResult(ResultType::kError, std::string("Address above the valid address space. Win error: ").append(std::to_string(GetLastError())));
+      func_result = ErrorResult(std::string("Address above the valid address space. Win error: ").append(std::to_string(GetLastError())));
 
     } else {
 
@@ -330,7 +328,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
         usage += show_module(info);
       }
       */
-      func_result = ProgramResult(ResultType::kError, std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
+      func_result = ErrorResult(std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
     }
 
   } else {
@@ -359,10 +357,10 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
 
   if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
     printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
-    return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
+    return ErrorResult("Could not open handle to snapshot");
   }
 
-  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heap enumerated successfully");
+  ProgramResult func_result = OkResult("Heap enumerated successfully");
 
   if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
@@ -431,7 +429,7 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   
   } else { 
     printf ("Cannot list first heap (%d)\n", GetLastError());
-    func_result = ProgramResult(ResultType::kError, "Cannot list first heap");
+    func_result = ErrorResult("Cannot list first heap");
   }
    
   CloseHandle(hHeapSnap);
@@ -462,14 +460,14 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
   if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
     printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
-    return ProgramResult(ResultType::kError, "Could not open handle to snapshot");
+    return ErrorResult("Could not open handle to snapshot");
   }
 
-  ProgramResult func_result = ProgramResult(ResultType::kOk, "Heaps copied successfully");
+  ProgramResult func_result = OkResult("Heaps copied successfully");
 
   HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
   if (process_handle == NULL) {
-    return ProgramResult(ResultType::kError, PROC_OPEN_ERR_MSG);
+    return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
   unsigned char* buffer = NULL;
@@ -492,7 +490,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
       buffer = (unsigned char*) calloc(sizeof(unsigned char), heap_to_copy.size);
       if (buffer == NULL) {
-        func_result = ProgramResult(ResultType::kError, "Could not allocate memory for the heap data");
+        func_result = ErrorResult("Could not allocate memory for the heap data");
       
       } else if ( Heap32First(&he, pid_, hl.th32HeapID )) {
         
@@ -544,11 +542,20 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
   
   } else { 
     printf ("Cannot list first heap (%d)\n", GetLastError());
-    func_result = ProgramResult(ResultType::kError, "Cannot list first heap");
+    func_result = ErrorResult("Cannot list first heap");
   }
    
   CloseHandle(hHeapSnap);
   return func_result;
+}
+
+error_handling::ProgramResult ProcessCapturer::QueryPrivilegeStatus() {
+  
+  return ErrorResult("Error");
+}
+
+bool ProcessCapturer::IsPrivileged() {
+  return is_privileged_;
 }
 
 void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address) {

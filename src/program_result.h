@@ -19,17 +19,29 @@
 
 namespace error_handling {
 
+enum class ResultType { kError, kOk };
+
 class ProgramResult {
  public:
-  enum class ResultType { kError, kOk };
-  
   ProgramResult(ResultType type, const std::string info);
-  bool IsOk();
+  virtual bool IsOk();
   std::string GetResultInformation();
 
  private:
   ResultType result_type_;
   std::string info_;
+};
+
+class ErrorResult : public ProgramResult {
+ public:
+  ErrorResult(const std::string info) : ProgramResult(ResultType::kError, info) {};
+  bool IsOk() override { return false; };
+};
+
+class OkResult : public ProgramResult {
+ public:
+  OkResult(const std::string info) : ProgramResult(ResultType::kOk, info) {};
+  bool IsOk() override { return true; };
 };
 
 }

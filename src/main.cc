@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
       (option == 'r') ? cp.ResumeProcess(true) : 
       (option == 'p') ? cp.PauseProcess(true) : 
       (option == 'k') ? cp.KillProcess() : 
-      ProgramResult::ProgramResult(ProgramResult::ResultType::kError, "Invalid option");
+      ErrorResult("Invalid option");
   
   cout << pr.GetResultInformation() << endl;
 

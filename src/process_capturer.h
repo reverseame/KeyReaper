@@ -40,6 +40,10 @@ class ProcessCapturer {
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
   error_handling::ProgramResult CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** buffer, SIZE_T* size);
 
+  // Privileges
+  error_handling::ProgramResult QueryPrivilegeStatus();
+  bool IsPrivileged();
+
   void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address = 0x0);
 
   // Query
@@ -54,6 +58,7 @@ class ProcessCapturer {
   DWORD pid_;
   ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
+  bool is_privileged_;
 
 };
 
