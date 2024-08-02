@@ -51,16 +51,16 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
   
   if (cryptoapi_base_address != NULL) {
 
-    printf("rsaenh.dll 0x%08X\n", (void*) cryptoapi_base_address);
+    printf("rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
 
     // Precomputed offsets vs GetProcAddress
     //FARPROC cgk_address = GetProcAddress(cryptoapi_base_address, "CryptGenKey");
-    vector<unsigned int> local_offsets = cryptoapi::cryptoapi_offsets;
+    vector<uintptr_t> local_offsets = cryptoapi::cryptoapi_offsets;
     for (auto &offset : local_offsets) {
-      offset += (unsigned int) cryptoapi_base_address;
+      offset += (uintptr_t) cryptoapi_base_address;
     }
 
-    unsigned int pos = 0;
+    uintptr_t pos = 0;
     size_t pattern_size = local_offsets.size() * sizeof(void*);
     unsigned char* byte_pattern = (unsigned char*) malloc(pattern_size);
     for (auto& offset : local_offsets) {
@@ -83,8 +83,8 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
     unsigned char* search_result;
 
     while ((search_result = search(search_start, input_buffer + heap_info.size, searcher)) != input_buffer + heap_info.size) {
-      unsigned int position = search_result - input_buffer;
-      printf("Pattern found at position: %td\n", position);
+      uintptr_t position = search_result - input_buffer;
+      //printf("Pattern found at position: d%td\n", position);
       printf(" Search result: [%p]\n", search_result);
       ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position);
 
