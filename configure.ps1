@@ -17,7 +17,7 @@ if ($build -eq 0 -or $build -eq 32) {
 
     Set-Location "build32"
     # Run CMake to configure the project
-    cmake -G "Visual Studio 17 2022" -A Win32 ../..
+    cmake -DCMAKE_GENERATOR_PLATFORM=Win32 -G "Visual Studio 17 2022" -A Win32 ../..
     cmake --build .
     Set-Location ..
 }
@@ -28,7 +28,7 @@ if ($build -eq 0 -or $build -eq 64) {
         New-Item -ItemType Directory -Path "build64"
     }
     Set-Location "build64"
-    cmake -G "Visual Studio 17 2022" -A x64 ../..
+    cmake -DCMAKE_GENERATOR_PLATFORM=x64 -G "Visual Studio 17 2022" -A x64 ../..
     cmake --build .
     Set-Location ..
 }
