@@ -5,7 +5,7 @@
 using namespace std;
 
 namespace key_scanner {
-Key::Key(KeySize key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
+Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
   
   try {
     key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + cipher_type_.GetSize()));
@@ -13,33 +13,40 @@ Key::Key(KeySize key_size, CipherAlgorithm algorithm, unsigned char* key) : ciph
   
   } catch (const std::bad_alloc& e) {
     cout << "Key allocation failed: " << e.what() << endl;
-    cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
+    cipher_type_ = KeyType(kError, CipherAlgorithm::kError);
     key_ = nullptr;
   }
 }
 
 Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) : 
-    cipher_type_(KeySize::kError, CipherAlgorithm::kError), key_() {
+    cipher_type_(kError, CipherAlgorithm::kError), key_() {
 
   switch (key_data->alg) {
   case CALG_AES_128:
     // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
     printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
-    cipher_type_ = KeyType(KeySize::k128, CipherAlgorithm::kAES);
-    key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
     break;
 
   case CALG_AES_256:
-    cipher_type_ = KeyType(KeySize::k256, CipherAlgorithm::kAES);
-    // TODO: key
+    printf(" Detected Windows CryptoAPI - AES 256 algorithm\n");
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
     break;
   
+  case CALG_RC4:
+    printf(" Detected Windows CryptoAPI - RC4 algorithm\n");
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kRC4);
+    break;
   default:
     // specified in the constructor initialization list
     // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
-    key = nullptr;
+    printf(" Detected Windows CryptoAPI - Key data copied.\n");
+    printf("  > ALG_ID: %u", key_data->alg);
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown);
     break;
   }
+
+  key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
 }
 
 size_t Key::GetSize() const {
