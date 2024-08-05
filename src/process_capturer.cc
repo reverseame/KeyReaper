@@ -92,9 +92,10 @@ SIZE_T show_module(MEMORY_BASIC_INFORMATION info) {
 namespace process_manipulation {
 
 ProcessCapturer::ProcessCapturer(int pid) 
-    : pid_(pid), suspended_(false) {
+    : pid_(pid), suspended_(false), is_privileged_(false) {
 
-      ProgramResult pr = QueryPrivilegeStatus();
+  ProgramResult pr = ObtainSeDebug();
+  std::cout << " [i] " << pr.GetResultInformation() << std::endl;
   
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
@@ -549,9 +550,61 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
   return func_result;
 }
 
-error_handling::ProgramResult ProcessCapturer::QueryPrivilegeStatus() {
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
+error_handling::ProgramResult ProcessCapturer::ObtainSeDebug() {
   
-  return ErrorResult("Error");
+  ProgramResult func_result = OkResult("Process obtained SeDebugPrivilege successfully");
+
+  HANDLE token;
+  bool success = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
+  if (success) {
+    TOKEN_PRIVILEGES new_privilege;
+    PRIVILEGE_SET privilegeSet;
+    LUID luid;
+    // https://learn.microsoft.com/en-us/windows/win32/secauthz/privilege-constants
+    bool success = LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid);
+
+    if (success) {
+      
+      privilegeSet.PrivilegeCount = 1;
+      privilegeSet.Privilege[0].Luid = luid;
+      privilegeSet.Privilege[0].Attributes = SE_PRIVILEGE_ENABLED;
+      privilegeSet.Control = PRIVILEGE_SET_ALL_NECESSARY;
+
+      BOOL privilege_found = false;
+      if (!PrivilegeCheck(token, &privilegeSet, &privilege_found)) {
+        printf("PrivilegeCheck failed. Error: %lu. Trying to elevate\n", GetLastError());
+        privilege_found = false;
+      }
+
+      if (privilege_found) {
+        is_privileged_ = true;
+        func_result = OkResult("Privilege already owned");
+
+      } else {
+        new_privilege.PrivilegeCount = 1;
+        new_privilege.Privileges[0].Luid = luid;
+        new_privilege.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+        success = AdjustTokenPrivileges(token, FALSE, &new_privilege, sizeof(TOKEN_PRIVILEGES), NULL, NULL);
+        if (success && GetLastError() == ERROR_SUCCESS) {
+          is_privileged_ = true;
+          
+        } else {
+          func_result = ErrorResult("Could not obtain SeDebugPrivilege");
+        }
+      }
+    } else {
+      func_result = ErrorResult("Could not retrieve token information");
+    }
+
+    CloseHandle(token);
+
+  } else {
+    func_result = ErrorResult("Could not open process token");
+  }
+
+  return func_result;
 }
 
 bool ProcessCapturer::IsPrivileged() {
