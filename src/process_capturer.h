@@ -15,9 +15,25 @@ class HeapInformation {
   HeapInformation(HEAPENTRY32 he) : 
       id(he.th32HeapID), base_address(he.dwAddress), final_address(NULL), size(0){};
 
-  bool IsAddressInHeap(LPVOID pointer) {
+  inline bool IsAddressInHeap(LPVOID pointer) {
     return (ULONG_PTR) pointer <= (ULONG_PTR) final_address && (ULONG_PTR) pointer >= (ULONG_PTR) base_address;
   };
+
+  inline bool RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) {
+    if (!IsAddressInHeap((void*) *pointer)) {
+      
+      printf(" > Pointer: %p\n", (void*) *pointer);
+      printf(" > Final:   %p\n", (void*) final_address);
+      printf(" > Base:    %p\n", (void*) base_address);
+      
+      return false;
+    
+    } else {
+      *pointer -= this->base_address;
+      *pointer += new_base_address;
+      return true;
+    }
+  }
 
   ULONG_PTR id;
   ULONG_PTR base_address;

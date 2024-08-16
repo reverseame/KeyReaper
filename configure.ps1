@@ -1,5 +1,6 @@
 param (
-    [Int32]$build = 0
+    [Int32]$build = 0,
+    [String]$release = "Debug"
 )
 
 # Create build directory if it doesn't exist
@@ -18,7 +19,7 @@ if ($build -eq 0 -or $build -eq 32) {
     Set-Location "build32"
     # Run CMake to configure the project
     cmake -DCMAKE_GENERATOR_PLATFORM=Win32 -G "Visual Studio 17 2022" -A Win32 ../..
-    cmake --build .
+    cmake --build . --config ${release}
     Set-Location ..
 }
 
@@ -29,7 +30,7 @@ if ($build -eq 0 -or $build -eq 64) {
     }
     Set-Location "build64"
     cmake -DCMAKE_GENERATOR_PLATFORM=x64 -G "Visual Studio 17 2022" -A x64 ../..
-    cmake --build .
+    cmake --build . --config ${release}
     Set-Location ..
 }
 

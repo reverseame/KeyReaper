@@ -1,6 +1,9 @@
 #include "key.h"
 #include <new>
 #include <iostream>
+#include <wincrypt.h>
+#include <string>
+#pragma comment(lib, "Crypt32.lib") // crypto api
 
 using namespace std;
 
@@ -41,8 +44,13 @@ Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) :
     // specified in the constructor initialization list
     // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
     printf(" Detected Windows CryptoAPI - Key data copied.\n");
-    printf("  > ALG_ID: %u", key_data->alg);
+    printf("  > ALG_ID: %X", key_data->alg);
     cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown);
+    
+    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(key_data->alg), 0);
+    if (poid_info != NULL) {
+      wcout << " (" << poid_info->pwszName << ")" << endl;
+    } else printf("\n");
     break;
   }
 

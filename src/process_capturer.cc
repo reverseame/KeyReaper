@@ -366,13 +366,14 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
       HEAPENTRY32 he;
+      HEAPENTRY32 prev_he; // temp
       ZeroMemory(&he, sizeof(HEAPENTRY32));
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
 
         HeapInformation heap_data = HeapInformation(he);
-        ULONG_PTR next_address = he.dwAddress; // the first address of the following block
+        prev_he = he;
 
         SIZE_T total_size = 0;
         do {
@@ -390,8 +391,34 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
           */
 
           // Q: what if the blocks are not adjacent
-          if (next_address != he.dwAddress) { printf("\nMismatch\n\n"); }
-          next_address = he.dwAddress + he.dwBlockSize;
+            // A1: As long as the block size stays the same,
+            //     it should be no problem
+          if (prev_he.dwAddress + prev_he.dwBlockSize != he.dwAddress) {
+            printf(" [!] Blocks are not adjacent\n");
+            /*
+            
+            printf("   * Block base: %p\n", (void*) he.dwAddress);
+            printf("   * Block size: %x\n", he.dwBlockSize);
+            printf("   * Final addr: %08X\n", he.dwAddress + he.dwBlockSize - 1);
+            printf("   * Next addre: %08X\n", he.dwAddress + he.dwBlockSize);
+            printf("--\n");
+
+            printf("    * Prev add:   %08X\n", prev_he.dwAddress);
+            printf("    * Prev size:  %08X\n", prev_he.dwSize);
+            printf("    * Prev final: %08X\n", prev_he.dwAddress + prev_he.dwSize);
+            printf("--\n");
+            
+            printf("   * Expected: %08X\n", prev_address);
+            printf("   * Actual:   %08X\n", he.dwAddress);
+            printf("   * Type:     ");
+            if (he.dwFlags == LF32_MOVEABLE) printf("MOVEABLE\n");
+            else if (he.dwFlags == LF32_FREE) printf("FREE\n");
+            else if (he.dwFlags == LF32_FIXED) printf("FIXED\n");
+            else printf("UNKOWN [h%x d%u] \n", he.dwFlags, he.dwFlags);
+
+            printf("---\n\n");*/
+          }
+          prev_he = he;
 
           // TODO: may consider ruling out free blocks LF32_FREE
           // Q: what if they are scattered?

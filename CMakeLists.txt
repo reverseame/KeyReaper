@@ -27,9 +27,10 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${SOURCE_BASE_DIR}/main.cc
 )
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME} ${ARCHITECTURE_APPEND}")
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
-add_executable("ransy"
+set(EXECUTABLE_NAME "ransy")
+add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/cifrar3.cpp
 )
-set_target_properties(ransy PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")

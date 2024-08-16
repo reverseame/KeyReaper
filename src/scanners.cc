@@ -86,33 +86,40 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
       uintptr_t position = search_result - input_buffer;
       //printf("Pattern found at position: d%td\n", position);
       printf(" HCRYPTKEY structure found at [%p]\n", search_result);
-      ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position);
+      // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
 
       match_count++;
       // TODO follow structure pointers to key
       cryptoapi::HCRYPTKEY* h_crypt_key = reinterpret_cast<cryptoapi::HCRYPTKEY*>(search_result);
-      if ( heap_info.IsAddressInHeap(h_crypt_key->magic) ) {
-        printf("Address out of this heap\n");
+      ULONG_PTR unk_struct = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
 
-      } else {
-        ULONG_PTR heap_offset = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
-        heap_offset -= (ULONG_PTR) heap_info.base_address; // offset in relation to the buffer
-        cryptoapi::magic_s* magic_struct_ptr = (cryptoapi::magic_s*) ((ULONG_PTR) heap_offset + (ULONG_PTR) input_buffer); // Why does it fail with the structure
+      if (heap_info.RebaseAddress(&unk_struct, (ULONG_PTR) input_buffer)) {
+        cryptoapi::magic_s* magic_struct_ptr = (cryptoapi::magic_s*) unk_struct;
+        ULONG_PTR ptr = (ULONG_PTR) magic_struct_ptr->key_data;
         // ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
+        if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
+          cryptoapi::key_data_s* key_data_struct = (cryptoapi::key_data_s*) ptr;
+          ptr = (ULONG_PTR) key_data_struct->key_bytes;
+          printf("   * Key found at 0x%p\n", (void*) ptr);
 
-        heap_offset = ((ULONG_PTR) magic_struct_ptr->key_data) - heap_info.base_address;
-        cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) (heap_offset + (ULONG_PTR) input_buffer);
-        // ProcessCapturer::PrintMemory((unsigned char*) key_data, 32, heap_info.base_address + heap_offset);
-
-        heap_offset = ((ULONG_PTR) key_data->key_bytes - (ULONG_PTR) heap_info.base_address);
-        Key key = Key(key_data, (unsigned char*) ((ULONG_PTR) input_buffer + heap_offset));
-        printf("   * Key found at 0x%p\n", key_data->key_bytes);
-
-        ProcessCapturer::PrintMemory((unsigned char*) ((ULONG_PTR) input_buffer + heap_offset), 16, heap_info.base_address + heap_offset);
-        found_keys.insert(key);
+          if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
+            Key key = Key(key_data_struct, (unsigned char*) ptr);
+            found_keys.insert(key);
+            // ProcessCapturer::PrintMemory((unsigned char*) (ptr), 16, ptr + heap_info.base_address - (ULONG_PTR) input_buffer);
+            
+          } else {
+            printf(" Key [0x%p] is out of this heap\n", (void*) ptr);
+            printf("  > ALG_ID: %X\n", key_data_struct->alg);
+          } 
+        } else {
+          printf(" Key data [0x%p] is out of this heap\n", magic_struct_ptr->key_data);
+        }
+      } else {
+        printf(" Magic struct address [0x%p] is out of this heap\n", (void*) unk_struct);
       }
 
       search_start = search_result + pattern_size;
+      printf(" --\n");
     }
 
     if (match_count == 0) {
