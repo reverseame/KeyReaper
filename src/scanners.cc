@@ -15,15 +15,15 @@ using HeapInformation = process_manipulation::HeapInformation;
 
 namespace key_scanner {
 
-void StrategyBuilder::AddStructureScan() {
+void ScannerBuilder::AddStructureScan() {
   do_structure_scan_ = true;
 }
 
-void StrategyBuilder::AddRoundKeyScan() {
+void ScannerBuilder::AddRoundKeyScan() {
   do_round_key_scan_ = true;
 }
 
-unique_ptr<vector<unique_ptr<ScanStrategy>>> StrategyBuilder::GetScanners() {
+unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
 
   unique_ptr<vector<unique_ptr<ScanStrategy>>> strategies = make_unique<vector<unique_ptr<ScanStrategy>>>();
 
