@@ -106,8 +106,15 @@ int main(int argc, char *argv[]) {
 
   printf("\n=======================\n");
   printf("All found keys: \n");
+
+  unsigned int i = 1;
   for (auto &key : keys) {
+    
+    cout << " Key [" << i++ << "/" << keys.size() << "]: " << endl;
+    cout << "  * Type: " << key.GetType() << endl << endl;
     ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
+
+    printf("---\n\n");
   }
 
   return 0;
