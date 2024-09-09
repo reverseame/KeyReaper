@@ -4,15 +4,12 @@
 #include <wincrypt.h>
 #include <string>
 
-#include <locale>
-#include <codecvt>
-
 #pragma comment(lib, "Crypt32.lib") // crypto api
 
 using namespace std;
 
 namespace key_scanner {
-Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm, ""), key_() {
+Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
   
   try {
     key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + cipher_type_.GetSize()));
@@ -20,52 +17,41 @@ Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : ciphe
   
   } catch (const std::bad_alloc& e) {
     cout << "Key allocation failed: " << e.what() << endl;
-    cipher_type_ = KeyType(kError, CipherAlgorithm::kError, "Error");
+    cipher_type_ = KeyType(kError, CipherAlgorithm::kError);
     key_ = nullptr;
   }
 }
 
 Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) : 
-    cipher_type_(kError, CipherAlgorithm::kError, "Unknown"), key_() {
+    cipher_type_(kError, CipherAlgorithm::kError), key_() {
 
   switch (key_data->alg) {
   case CALG_AES_128:
     // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
     printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES, "AES");
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
     break;
 
   case CALG_AES_256:
     printf(" Detected Windows CryptoAPI - AES 256 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES, "AES");
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
     break;
   
   case CALG_RC4:
     printf(" Detected Windows CryptoAPI - RC4 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kRC4, "RC4");
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kRC4);
     break;
   default:
     // specified in the constructor initialization list
     // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
     printf(" Detected Windows CryptoAPI - Key data copied.\n");
     printf("  > ALG_ID: %X", key_data->alg);
+    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown);
     
     const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(key_data->alg), 0);
     if (poid_info != NULL) {
       wcout << " (" << poid_info->pwszName << ")" << endl;
-      // std::wstring ws = poid_info->pwszName;
-      using convert_type = std::codecvt_utf8<wchar_t>;
-      std::wstring_convert<convert_type, wchar_t> converter;
-      
-      // string s = WideCharToMultiByte(
-        //CP_UTF8, WC_COMPOSITECHECK,
-        //poid_info->pwszName, -1, NULL, );
-      cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown, converter.to_bytes( poid_info->pwszName ));
-
-    } else {
-      cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown, "Unkown");
-      printf("\n");
-    }
+    } else printf("\n");
     
     break;
   }
@@ -77,7 +63,11 @@ size_t Key::GetSize() const {
   return cipher_type_.GetSize();
 }
 
-std::string Key::GetType() const {
+std::string Key::GetAlgorithm() const {
+  return cipher_type_.GetAlgorithmAsString();
+}
+
+std::string Key::GetCipherType() const {
   string algo = cipher_type_.GetAlgorithmAsString();
   string key_size = to_string(cipher_type_.GetSize() * 8);
 
@@ -109,7 +99,12 @@ CipherAlgorithm KeyType::GetAlgorithm() const {
 }
 
 std::string KeyType::GetAlgorithmAsString() const {
-  return algorithm_str_;
+  auto algo = cipher_to_string.find(algorithm_);
+  if (algo != cipher_to_string.end()) {
+        return algo->second;
+    } else {
+        return "Unknown algorithm";
+    }
 }
 
 

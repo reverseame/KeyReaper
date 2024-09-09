@@ -2,6 +2,7 @@
 #define KEY_H
 
 #include <string>
+#include <unordered_map>
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -10,13 +11,22 @@
 namespace key_scanner {
 
 size_t const kError = 0;
-enum class CipherAlgorithm { kError, kUnknown, kAES, kRSA, kRC4 };
+enum class CipherAlgorithm { kError, kUnknown, kAES, kRSA, kRC4, kDES, kSalsa20 };
+
+const std::unordered_map<CipherAlgorithm, std::string> cipher_to_string = {
+    { CipherAlgorithm::kError, "Error" },
+    { CipherAlgorithm::kUnknown, "Unknown" },
+    { CipherAlgorithm::kAES, "AES" },
+    { CipherAlgorithm::kRSA, "RSA" },
+    { CipherAlgorithm::kRC4, "RC4" },
+    { CipherAlgorithm::kDES, "DES" },
+    { CipherAlgorithm::kSalsa20, "Salsa20" },
+};
 
 class KeyType {
  public:
-  KeyType(size_t key_size, CipherAlgorithm algorithm, std::string algorithm_str) : 
-      key_size_(key_size), algorithm_(algorithm),
-      algorithm_str_(algorithm_str) {};
+  KeyType(size_t key_size, CipherAlgorithm algorithm) : 
+      key_size_(key_size), algorithm_(algorithm) {};
   
   size_t GetSize() const;
   CipherAlgorithm GetAlgorithm() const;
@@ -25,7 +35,6 @@ class KeyType {
  private:
   size_t key_size_;
   CipherAlgorithm algorithm_;
-  std::string algorithm_str_;
 };
 
 class Key {
@@ -38,7 +47,8 @@ class Key {
   Key& operator=(const Key& other) = default;
 
   size_t GetSize() const;
-  std::string GetType() const;
+  std::string GetAlgorithm() const;
+  std::string GetCipherType() const;
   std::vector<unsigned char> GetKey() const;
 
   bool operator==(const Key& other) const;

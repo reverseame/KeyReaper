@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
   for (auto &key : keys) {
     
     cout << " Key [" << i++ << "/" << keys.size() << "]: " << endl;
-    cout << "  * Type: " << key.GetType() << endl << endl;
+    cout << "  * Type: " << key.GetAlgorithm() << endl << "  * Size: " << key.GetSize() << " bytes" << endl << endl;
     ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
 
     printf("---\n\n");
