@@ -2,7 +2,7 @@
 Repositorio temporal para craper
 
 ## Important notice
-This program is very architecture dependant. The compilation produces two slightly version for 32 and 64 bit where, for the most part, changes the pointer sizes, but also some important constants of the scanners. Take this into account when analyzing a program, since you will need the corresponding application: for example, WannaCry, which is a 32 bit ransomware, needs to be analyzed with the x86 (32 bit) version of this program. On the other hand, a 64 bit ransomware needs to be analyzed with the 64 bit version of this program, otherwise it will fail.
+This program is very architecture dependant. The compilation produces two slightly version for 32 and 64 bit where, for the most part, the pointer sizes change, but also some important constants of the scanners. Take this into account when analyzing a program, since you will need the corresponding application: for example, WannaCry, which is a 32 bit ransomware, needs to be analyzed with the x86 (32 bit) version of this program. On the other hand, a 64 bit ransomware needs to be analyzed with the 64 bit version of this program, otherwise it will fail.
 
 ## Dependencies
 
