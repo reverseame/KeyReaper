@@ -8,6 +8,15 @@
 
 typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
+namespace nt_suspend {
+// https://ntopcode.wordpress.com/2018/01/16/anatomy-of-the-thread-suspension-mechanism-in-windows-windows-internals/
+typedef _Return_type_success_(return >= 0) LONG NTSTATUS;
+
+typedef NTSTATUS(NTAPI *pNtSuspendProcess)(
+  HANDLE ProcessHandle
+); // Undocumented NTDLL function
+}
+
 namespace process_manipulation {
 
 class HeapInformation {
@@ -74,12 +83,13 @@ class ProcessCapturer {
  private:
  // TODO: review
   void SetSuspendPtr(int ThreadSuspendFunction);
+  error_handling::ProgramResult InitializeExports();
 
+  static nt_suspend::pNtSuspendProcess fNtPauseProcess;
   DWORD pid_;
   ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
   bool is_privileged_;
-
 };
 
 } // namespace process_manipulation

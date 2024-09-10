@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   char option = argv[2][0];
   ProgramResult pr = 
       (option == 'r') ? cp.ResumeProcess(true) : 
-      (option == 'p') ? cp.PauseProcess(true) : 
+      (option == 'p') ? cp.PauseProcessNt() : 
       (option == 'k') ? cp.KillProcess() : 
       ErrorResult("Invalid option");
   

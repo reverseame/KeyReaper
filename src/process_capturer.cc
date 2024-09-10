@@ -93,6 +93,7 @@ SIZE_T show_module(MEMORY_BASIC_INFORMATION info) {
 }
 
 namespace process_manipulation {
+nt_suspend::pNtSuspendProcess ProcessCapturer::fNtPauseProcess = nullptr; // static class member
 
 ProcessCapturer::ProcessCapturer(int pid) 
     : pid_(pid), suspended_(false), is_privileged_(false) {
@@ -187,6 +188,28 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
   return func_result;
 }
 
+error_handling::ProgramResult ProcessCapturer::PauseProcessNt(bool force_pause) {
+
+  if (fNtPauseProcess == nullptr) {
+    ProgramResult exports_result = InitializeExports();
+    if (exports_result.IsErr()) {
+      return exports_result;
+    }
+  }
+
+  ProgramResult func_result = OkResult("Successfully paused the process");
+
+  HANDLE process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid_);
+  NTSTATUS pause_result = fNtPauseProcess(process_handle);
+  if (pause_result < 0) {
+    printf("ERROR: %u", pause_result);
+    func_result = ErrorResult("Could not pause process using NT");
+  }
+
+  CloseHandle(process_handle);
+  return func_result;
+}
+
 /**
  * Resumes the process associated with the object by resuming
  * all of its threads.
@@ -256,7 +279,7 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 
 /**
  * Pauses a thread given its TID (Thread ID).
- * Does not check if the TID exists in the captured process or not.
+ * Does not check if the thread belongs to the captured process or not.
  */
 error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32ThreadID_to_pause) {
 
@@ -281,6 +304,10 @@ error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32Threa
   return func_result;
 }
 
+/**
+ * Resumes a thread given its TID by reducing the pause count to zero.
+ * Does not check if the thread belongs to the captured process or not.
+ */
 error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32ThreadID_to_resume) {
   // Errors will overwrite this variable. If there are not, the program will return this
   ProgramResult func_result = OkResult("Thread successfully paused");
@@ -310,6 +337,24 @@ error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32Thre
 void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
   // TODO - implement ProcessCapturer::setSuspendPtr
   throw "Not yet implemented";
+}
+
+error_handling::ProgramResult ProcessCapturer::InitializeExports() {
+
+  ProgramResult func_result = OkResult("Successfully initialized all exports");
+
+  HMODULE ntdll_handle = GetModuleHandleA("NTDLL");
+  if (ntdll_handle == NULL) {
+    func_result = ErrorResult("Could not obtain a handle to NTDLL");
+  
+  } else {
+    ProcessCapturer::fNtPauseProcess = (nt_suspend::pNtSuspendProcess) GetProcAddress(ntdll_handle, "NtSuspendProcess");
+    if (ProcessCapturer::fNtPauseProcess == NULL) {
+      func_result = ErrorResult("Could not initialize NtResumeProcess function");
+    }
+  }
+
+  return func_result;
 }
 
 /**
