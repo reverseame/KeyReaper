@@ -25,6 +25,7 @@ class ProgramResult {
  public:
   ProgramResult(ResultType type, const std::string info);
   virtual bool IsOk();
+  virtual bool IsErr();
   std::string GetResultInformation();
 
  private:
