@@ -105,6 +105,14 @@ ProcessCapturer::ProcessCapturer(int pid)
 
 }
 
+// TODO: add an argument for caching the thread list
+/**
+ * Retreives a list of the threads of the process associated
+ * with the object through a snapshot.
+ * 
+ * @param TID_list  [out] A vector for storing the Thread ID of the
+ *                  process' threads
+ */
 error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWORD> *TID_list) {
 
   if (!IsProcessAlive()) {
@@ -142,8 +150,6 @@ error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWOR
   return func_result;
 }
 
-
-// TODO: add an argument for caching the thread list
 /**
  * Pauses the process associated with the object by 
  * pausing all of its threads.
@@ -170,26 +176,11 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   for (auto thread_id : thread_list) {
 
-    // Get handle to thread
-    HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_id);
-    if (thread_handle == NULL) {
-      func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+    ProgramResult pause_result = PauseSingleThread(thread_id);
+    if (pause_result.IsErr()) {
+      func_result = pause_result;
       break;
     }
-
-    // Suspend thread
-    DWORD suspension_count = SuspendThread(thread_handle);
-    if (suspension_count == (DWORD) - 1) {
-      // TODO include threadID in the error message
-      printf("[x] Could not pause thread: %u\n", thread_id);
-      func_result = ErrorResult(THEAD_PAUSE_ERR_MSG);
-      break;
-    }
-    printf("[%i] Suspend count: %i\n", thread_id, suspension_count + 1);
-
-    // Not considering the result of the close handle function,
-    // since its result won't affect the outcome our program
-    CloseHandle(thread_handle);
   }
 
   if (func_result.IsOk()) suspended_ = true;
@@ -197,7 +188,15 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 }
 
 /**
- * Resumes the process associated with the object.
+ * Resumes the process associated with the object by resuming
+ * all of its threads.
+ * 
+ * @param force_resume Forces the program to resume even if
+ *        it is internally registered as running, in case an
+ *        external agent paused it. Internally, it reduces
+ *        all process' threads pause count to zero, so if the
+ *        process was already running, it won't have any 
+ *        side effect.
 */
 ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
   printf("Resuming process\n");
@@ -215,34 +214,20 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
 
   for (auto thread_id : thread_list) {
 
-    // Get handle to thread
-    HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread_id);
-    if (thread_handle == NULL) {
-      func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+    ProgramResult resume_result = ResumeSingleThread(thread_id);
+    if (resume_result.IsErr()) {
+      func_result = resume_result;
       break;
     }
-
-    // Reduce the suspension count to zero
-    printf("[%u] Reducing to zero the number of pauses\n", thread_id);
-    DWORD suspension_count;
-    do {
-      suspension_count = ResumeThread(thread_handle) - 1; // ResumeThread returns the PREVIOUS pause count
-      if (suspension_count == (DWORD) - 1) {
-        // TODO include exact number in error text with a formatter
-        func_result = ErrorResult(THREAD_RESUME_ERR_MSG);
-        break;
-      }
-    } while (suspension_count > 0);
-    
-    // Not considering the result of the close handle function,
-    // since its result won't affect the outcome our program
-    CloseHandle(thread_handle);
   }
 
   if (func_result.IsOk()) suspended_ = false;
   return func_result;
 }
 
+/**
+ * Terminates the process associated with the object.
+ */
 ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 
   ProgramResult func_result = OkResult("Process terminated");
@@ -278,20 +263,48 @@ error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32Threa
   // Errors will overwrite this variable. If there are not, the program will return this
   ProgramResult func_result = OkResult("Thread successfully paused");
 
+  // Get handle to thread
   HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, th32ThreadID_to_pause);
   if (thread_handle == NULL) {
     func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
   }
+
+  // Pause thread
   DWORD suspension_count = SuspendThread(thread_handle);
   if (suspension_count == (DWORD) - 1) {
     // TODO include exact number in error text with a formatter
     func_result = ErrorResult(THEAD_PAUSE_ERR_MSG);
   }
-  printf("[%i] Suspension count: %i\n", th32ThreadID_to_pause, suspension_count + 1);
-  CloseHandle(thread_handle);
-
-  return func_result;
+  printf("[%u] Suspension count: %u\n", th32ThreadID_to_pause, suspension_count + 1);
   
+  CloseHandle(thread_handle);
+  return func_result;
+}
+
+error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32ThreadID_to_resume) {
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("Thread successfully paused");
+
+  // Obtain a handle to the thread
+  HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, th32ThreadID_to_resume);
+  if (thread_handle == NULL) {
+    func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+  }
+  
+  // Reduce the suspension count to zero
+  printf("[%u] Reducing to zero the number of pauses\n", th32ThreadID_to_resume);
+  DWORD suspension_count;
+  do {
+    suspension_count = ResumeThread(thread_handle) - 1; // ResumeThread returns the PREVIOUS pause count
+    if (suspension_count == (DWORD) - 1) {
+      // TODO include exact number in error text with a formatter
+      func_result = ErrorResult(THREAD_RESUME_ERR_MSG);
+      break;
+    }
+  } while (suspension_count > 0);
+
+  CloseHandle(thread_handle);
+  return func_result;
 }
 
 void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
