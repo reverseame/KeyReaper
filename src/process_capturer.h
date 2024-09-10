@@ -49,9 +49,11 @@ class ProcessCapturer {
   // Process manipulation interface
   error_handling::ProgramResult EnumerateThreads(std::vector<DWORD>* TID_list);
   error_handling::ProgramResult PauseProcess(bool force_pause = false);
+  error_handling::ProgramResult PauseProcessNt(bool force_pause = false);
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);
-  error_handling::ProgramResult PauseThread(DWORD th32ThreadID);
+  error_handling::ProgramResult PauseSingleThread(DWORD th32ThreadID);
+  error_handling::ProgramResult ResumeSingleThread(DWORD th32ThreadID);
 
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
