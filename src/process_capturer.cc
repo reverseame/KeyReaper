@@ -115,7 +115,7 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
   printf("[i] Creating process snapshot\n");
   HANDLE thread_snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (thread_snapshot == INVALID_HANDLE_VALUE) {
-      return ErrorResult(THREAD_SNAP_ERR_MSG);
+    return ErrorResult(THREAD_SNAP_ERR_MSG);
   }
 
   // Errors will overwrite this variable. If there are not, the program will return this
@@ -125,7 +125,7 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
   thread_entry.dwSize = sizeof(THREADENTRY32);
   BOOL copied = Thread32First(thread_snapshot, &thread_entry);
   if (!copied) {
-      func_result = ErrorResult(THREAD_SNAP_FIRST_ERR_MSG);
+    func_result = ErrorResult(THREAD_SNAP_FIRST_ERR_MSG);
       
   } else if (GetLastError() == ERROR_NO_MORE_FILES) {
   func_result = ErrorResult(THREAD_SNAP_NO_INFO_ERR_MSG);
