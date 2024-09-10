@@ -10,7 +10,7 @@
 #define PROC_CLOSE_ERR_MSG "Could not close handle to process"
 
 #define THREAD_OPEN_ERR_MSG "Could not open thread"
-#define THEAD_MAX_SUS_COUNT_ERR_MSG "Thread reached its maximum number of suspensions"
+#define THEAD_PAUSE_ERR_MSG "Could not suspend thread"
 #define THREAD_CLOSE_ERR_MSG "Could not close handle to thread"
 #define THREAD_RESUME_ERR_MSG "Failed to resume the thread"
 #define THREAD_SNAP_ERR_MSG "Could not create a snapshot of the threads"

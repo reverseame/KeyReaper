@@ -142,11 +142,12 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
           func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
           break;
         }
-              
+        
+        printf("  * TID: %i\n", thread_entry.th32ThreadID);
         DWORD suspension_count = SuspendThread(thread_handle);
         if (suspension_count == (DWORD) - 1) {
           // TODO include exact number in error text with a formatter
-          func_result = ErrorResult(THEAD_MAX_SUS_COUNT_ERR_MSG);
+          func_result = ErrorResult(THEAD_PAUSE_ERR_MSG);
           break;
         }
         printf("[%i] Suspend count: %i\n", n_threads, suspension_count + 1);
@@ -263,14 +264,39 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
   return func_result;
 }
 
+/**
+ * Pauses a thread given its TID (Thread ID).
+ * Does not check if the TID exists in the captured process or not.
+ */
+error_handling::ProgramResult ProcessCapturer::PauseThread(DWORD th32ThreadID_to_pause) {
+
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("Thread successfully paused");
+
+  HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, th32ThreadID_to_pause);
+  if (thread_handle == NULL) {
+    func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+  }
+  DWORD suspension_count = SuspendThread(thread_handle);
+  if (suspension_count == (DWORD) - 1) {
+    // TODO include exact number in error text with a formatter
+    func_result = ErrorResult(THEAD_PAUSE_ERR_MSG);
+  }
+  printf("[%i] Suspension count: %i\n", th32ThreadID_to_pause, suspension_count + 1);
+  CloseHandle(thread_handle);
+
+  return func_result;
+  
+}
+
 void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
   // TODO - implement ProcessCapturer::setSuspendPtr
   throw "Not yet implemented";
 }
 
 /**
- * Determines if the process exists / is alive (not killed), independently of
- * the status (paused or running)
+ * Determines if the process ended or is alive (not killed), independently of
+ * the internal status (paused or running)
 */
 bool ProcessCapturer::IsProcessAlive() {
   bool active = false;
@@ -295,9 +321,9 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
-  ProgramResult func_result = OkResult("Heap data retrieved");
+  ProgramResult func_result = OkResult("Data copied");
 
-  *bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
+  *bytes_read = !NULL; // don't init at zero (NULL), otherwise it won't write this variable
   BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
   if (result == 0) {
     { // TODO: only verbose mode
@@ -320,7 +346,6 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
       func_result = ErrorResult(std::string("Address above the valid address space. Win error: ").append(std::to_string(GetLastError())));
 
     } else {
-
       /*
       unsigned long usage = 0;
       for ( LPCVOID address = starting_address;
@@ -505,6 +530,7 @@ ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, uns
 
   // TODO: consider controlling the heap mutex with HeapLock and also check 
   //       if it was already locked
+  // WARN: may be dangerous over system processes (a probable target in case of injection)
   // https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaplock
   if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
@@ -648,6 +674,12 @@ void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, UL
   } printf("\n");
 }
 
+/** When a process is suspended by the program, an internal variable keeps track of it.
+ *  PauseProcess function sets it and ResumeProcess unsets it.
+ *  Pausing a specific thread does not affect it.
+ * 
+ * This function may be used to recover this information
+ * */
 bool ProcessCapturer::IsSuspended() {
   return suspended_;
 }

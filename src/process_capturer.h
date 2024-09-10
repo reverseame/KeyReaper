@@ -50,6 +50,7 @@ class ProcessCapturer {
   error_handling::ProgramResult PauseProcess(bool force_pause = false);
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);
+  error_handling::ProgramResult PauseThread(DWORD th32ThreadID);
 
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
