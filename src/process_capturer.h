@@ -47,6 +47,7 @@ class ProcessCapturer {
   ProcessCapturer(int pid);
 
   // Process manipulation interface
+  error_handling::ProgramResult EnumerateThreads(std::vector<DWORD>* TID_list);
   error_handling::ProgramResult PauseProcess(bool force_pause = false);
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);

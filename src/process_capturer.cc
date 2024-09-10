@@ -102,6 +102,55 @@ ProcessCapturer::ProcessCapturer(int pid)
 
 }
 
+error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWORD> *TID_list) {
+
+  if (!IsProcessAlive()) {
+    return ErrorResult(PROC_NOT_ALIVE_ERR_MSG);
+  }
+
+  printf("[i] Creating process snapshot\n");
+  HANDLE thread_snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (thread_snapshot == INVALID_HANDLE_VALUE) {
+    return ErrorResult(THREAD_SNAP_ERR_MSG);
+  }
+
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("All process's theads information retrieved");
+
+  THREADENTRY32 thread_entry;
+  thread_entry.dwSize = sizeof(THREADENTRY32);
+  BOOL copied = Thread32First(thread_snapshot, &thread_entry);
+  if (!copied) {
+    func_result = ErrorResult(THREAD_SNAP_FIRST_ERR_MSG);
+      
+  } else if (GetLastError() == ERROR_NO_MORE_FILES) {
+  func_result = ErrorResult(THREAD_SNAP_NO_INFO_ERR_MSG);
+
+  } else {
+    do {
+      if (thread_entry.th32OwnerProcessID == pid_) {
+        TID_list->push_back(thread_entry.th32ThreadID);
+      }
+    } while (Thread32Next(thread_snapshot, &thread_entry));
+  }
+
+  // We should always close the handle
+  CloseHandle(thread_snapshot);
+  return func_result;
+}
+
+
+// TODO: add an argument for caching the thread list
+/**
+ * Pauses the process associated with the object by 
+ * pausing all of its threads.
+ * 
+ * @param force_pause Forces the program to pause even if 
+ *        it was already suspended before, or something else
+ *        resumed it. Internally, it increases the pause count 
+ *        of the threads by one, so there is no drawback to
+ *        this option.
+ */
 ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   if (!IsProcessAlive()) {
