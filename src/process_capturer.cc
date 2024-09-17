@@ -283,14 +283,14 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
  */
 error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32ThreadID_to_pause) {
 
-  // Errors will overwrite this variable. If there are not, the program will return this
-  ProgramResult func_result = OkResult("Thread successfully paused");
-
   // Get handle to thread
   HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, th32ThreadID_to_pause);
   if (thread_handle == NULL) {
-    func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+    return ErrorResult(THREAD_OPEN_ERR_MSG);
   }
+
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("Thread successfully paused");
 
   // Pause thread
   DWORD suspension_count = SuspendThread(thread_handle);
@@ -309,14 +309,15 @@ error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32Threa
  * Does not check if the thread belongs to the captured process or not.
  */
 error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32ThreadID_to_resume) {
-  // Errors will overwrite this variable. If there are not, the program will return this
-  ProgramResult func_result = OkResult("Thread successfully paused");
 
   // Obtain a handle to the thread
   HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, th32ThreadID_to_resume);
   if (thread_handle == NULL) {
-    func_result = ErrorResult(THREAD_OPEN_ERR_MSG);
+    return ErrorResult(THREAD_OPEN_ERR_MSG);
   }
+
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("Thread successfully paused");
   
   // Reduce the suspension count to zero
   printf("[%u] Reducing to zero the number of pauses\n", th32ThreadID_to_resume);
@@ -329,6 +330,28 @@ error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32Thre
       break;
     }
   } while (suspension_count > 0);
+
+  CloseHandle(thread_handle);
+  return func_result;
+}
+
+error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32ThreadID_to_kill) {
+
+  // Get handle to thread
+  HANDLE thread_handle = OpenThread(THREAD_TERMINATE, FALSE, th32ThreadID_to_kill);
+  if (thread_handle == NULL) {
+    return ErrorResult(THREAD_OPEN_ERR_MSG);
+  }
+
+  // Errors will overwrite this variable. If there are not, the program will return this
+  ProgramResult func_result = OkResult("Thread successfully terminated");
+
+  // Kill thread
+  DWORD exit_code = ERROR_BAD_COMMAND; // exit code (does it matter? probably depends on how the ransomware does the error handling)
+  DWORD termination_result = TerminateThread(thread_handle, exit_code);
+  if (termination_result == 0) {
+    func_result = ErrorResult("Could not terminate thread");
+  }
 
   CloseHandle(thread_handle);
   return func_result;
