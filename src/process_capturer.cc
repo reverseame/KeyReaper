@@ -107,13 +107,6 @@ ProcessCapturer::ProcessCapturer(int pid)
 }
 
 // TODO: add an argument for caching the thread list
-/**
- * Retreives a list of the threads of the process associated
- * with the object through a snapshot.
- * 
- * @param TID_list  [out] A vector for storing the Thread ID of the
- *                  process' threads
- */
 error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWORD> *TID_list) {
 
   if (!IsProcessAlive()) {
@@ -151,16 +144,6 @@ error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWOR
   return func_result;
 }
 
-/**
- * Pauses the process associated with the object by 
- * pausing all of its threads.
- * 
- * @param force_pause Forces the program to pause even if 
- *        it was already suspended before, or something else
- *        resumed it. Internally, it increases the pause count 
- *        of the threads by one, so there is no drawback to
- *        this option.
- */
 ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
   printf("Pausing process\n");
 
@@ -210,17 +193,6 @@ error_handling::ProgramResult ProcessCapturer::PauseProcessNt(bool force_pause) 
   return func_result;
 }
 
-/**
- * Resumes the process associated with the object by resuming
- * all of its threads.
- * 
- * @param force_resume Forces the program to resume even if
- *        it is internally registered as running, in case an
- *        external agent paused it. Internally, it reduces
- *        all process' threads pause count to zero, so if the
- *        process was already running, it won't have any 
- *        side effect.
-*/
 ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
   printf("Resuming process\n");
 
@@ -248,9 +220,6 @@ ProgramResult ProcessCapturer::ResumeProcess(bool force_resume) {
   return func_result;
 }
 
-/**
- * Terminates the process associated with the object.
- */
 ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
 
   ProgramResult func_result = OkResult("Process terminated");
@@ -277,10 +246,6 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
   return func_result;
 }
 
-/**
- * Pauses a thread given its TID (Thread ID).
- * Does not check if the thread belongs to the captured process or not.
- */
 error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32ThreadID_to_pause) {
 
   // Get handle to thread
@@ -304,10 +269,6 @@ error_handling::ProgramResult ProcessCapturer::PauseSingleThread(DWORD th32Threa
   return func_result;
 }
 
-/**
- * Resumes a thread given its TID by reducing the pause count to zero.
- * Does not check if the thread belongs to the captured process or not.
- */
 error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32ThreadID_to_resume) {
 
   // Obtain a handle to the thread
@@ -379,10 +340,6 @@ error_handling::ProgramResult ProcessCapturer::InitializeExports() {
   return func_result;
 }
 
-/**
- * Determines if the process ended or is alive (not killed), independently of
- * the internal status (paused or running)
-*/
 bool ProcessCapturer::IsProcessAlive() {
   bool active = false;
   HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION , FALSE, pid_);
@@ -455,10 +412,6 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   return func_result;
 }
 
-/**
- * Retrieves the information of all the heaps of the process. It is necessary
- * to have elevated privileges to perform this action.
-*/
 ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* heaps) {
   printf("Getting heap\n");
 
@@ -574,21 +527,6 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   return func_result;
 }
 
-/**
- * From the information about the heap, copies the whole heap to a buffer.
- * Although the pointer must be user supplied, note that the memory allocation 
- * is done by this function, and the release must be done by the user.
- * 
- * A few things to note about the function
- *  * It will initialize the memory region with zeroes
- *  * It skips the LF32_FREE blocks, since they may produce invalid addresses
- *  * If the block cannot be copied or is marked as free will be filled with 0xFF
- * 
- * ## Arguments
- *  * [in] HeapInformation heap. This is obtained through the GetProcessHeaps function
- *  * [out] unsigned char** buffer. This is where the function will place the allocated buffer with the heap data.
- *  * [out] SIZE_T size. Number of bytes written
-*/
 ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** output_buffer, SIZE_T* size) {
   printf("Getting heaps\n");
 
@@ -759,12 +697,6 @@ void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, UL
   } printf("\n");
 }
 
-/** When a process is suspended by the program, an internal variable keeps track of it.
- *  PauseProcess function sets it and ResumeProcess unsets it.
- *  Pausing a specific thread does not affect it.
- * 
- * This function may be used to recover this information
- * */
 bool ProcessCapturer::IsSuspended() {
   return suspended_;
 }

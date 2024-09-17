@@ -56,18 +56,102 @@ class ProcessCapturer {
   ProcessCapturer(int pid);
 
   // Process manipulation interface
+  /**
+   * Retreives a list of the threads of the process associated
+   * with the object through a snapshot.
+   * 
+   * @param TID_list  [out] A vector for storing the Thread ID of the
+   *                  process' threads
+   */
   error_handling::ProgramResult EnumerateThreads(std::vector<DWORD>* TID_list);
+
+  /**
+   * Pauses the process associated with the object by 
+   * pausing all of its threads.
+   * 
+   * @param force_pause Forces the program to pause even if 
+   *        it was already suspended before, or something else
+   *        resumed it. Internally, it increases the pause count 
+   *        of the threads by one, so there is no drawback to
+   *        this option.
+   */
   error_handling::ProgramResult PauseProcess(bool force_pause = false);
+
+  /**
+   * Pauses the process associated with the object by using an
+   * undocumented API function called NtPauseProcess.
+   * 
+   * @param force_pause Forces the program to pause even if 
+   *        it was already suspended before, or something else
+   *        resumed it. Internally, it increases the pause count 
+   *        of the threads by one, so there is no drawback to
+   *        this option.
+   */
   error_handling::ProgramResult PauseProcessNt(bool force_pause = false);
+
+  /**
+   * Resumes the process associated with the object by resuming
+   * all of its threads.
+   * 
+   * @param force_resume Forces the program to resume even if
+   *        it is internally registered as running, in case an
+   *        external agent paused it. Internally, it reduces
+   *        all process' threads pause count to zero, so if the
+   *        process was already running, it won't have any 
+   *        side effect.
+   */
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
+
+  /**
+   * Terminates the process associated with the object.
+   * 
+   * @param exit_code For specifying the exit code for the termination
+   *                  of the process. It defaults to zero. 
+   */
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);
+
+  /**
+   * Pauses a thread given its TID (Thread ID).
+   * Does not check if the thread belongs to the captured process or not.
+   */
   error_handling::ProgramResult PauseSingleThread(DWORD th32ThreadID);
+
+  /**
+   * Resumes a thread given its TID by reducing the pause count to zero.
+   * Does not check if the thread belongs to the captured process or not.
+   */
   error_handling::ProgramResult ResumeSingleThread(DWORD th32ThreadID);
+
+  /**
+   * Terminates the execution of a thread given its TID.
+   * Does not check if the thread belongs to the captured process or not.
+   */
   error_handling::ProgramResult KillSingleThread(DWORD th32ThreadID, DWORD exit_code = 0);
 
   // Memory stealing
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
+
+  /**
+   * Retrieves the information of all the heaps of the process. It is necessary
+   * to have elevated privileges to perform this action.
+   */
   error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
+
+  /**
+   * From the information about the heap, copies the whole heap to a buffer.
+   * Although the pointer must be user supplied, note that the memory allocation 
+   * is done by this function, and the release must be done by the user.
+   * 
+   * A few things to note about the function
+   *  * It will initialize the memory region with zeroes
+   *  * It skips the LF32_FREE blocks, since they may produce invalid addresses
+   *  * If the block cannot be copied or is marked as free will be filled with 0xFF
+   * 
+   * ## Arguments
+   *  * [in] HeapInformation heap. This is obtained through the GetProcessHeaps function
+   *  * [out] unsigned char** buffer. This is where the function will place the allocated buffer with the heap data.
+   *  * [out] SIZE_T size. Number of bytes written
+   */
   error_handling::ProgramResult CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** buffer, SIZE_T* size);
 
   // Privileges
@@ -78,7 +162,19 @@ class ProcessCapturer {
 
   // Query
   DWORD GetPid() const;
+
+  /** When a process is suspended by the program, an internal variable keeps track of it.
+   *  PauseProcess function sets it and ResumeProcess unsets it.
+   *  Pausing a specific thread does not affect it.
+   * 
+   * This function may be used to recover this information
+   */
   bool IsSuspended();
+
+  /**
+   * Determines if the process ended or is alive (not killed), independently of
+   * the internal status (paused or running)
+  */
   bool IsProcessAlive();
 
  private:
