@@ -45,6 +45,9 @@ class OkResult : public ProgramResult {
   bool IsOk() override { return true; };
 };
 
+// https://stackoverflow.com/questions/1387064/how-to-get-the-error-message-from-the-error-code-returned-by-getlasterror
+std::string GetLastErrorAsString();
+
 }
 
 #endif
