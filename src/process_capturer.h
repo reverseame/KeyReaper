@@ -128,7 +128,21 @@ class ProcessCapturer {
    */
   error_handling::ProgramResult KillSingleThread(DWORD th32ThreadID, DWORD exit_code = 0);
 
-  // Memory stealing
+
+  // Memory stealing methods
+
+  /**
+   * This function serves as an interface to Windows API call `ReadProcessMemory`,
+   * which allows to read the memory space of the captured process given, and
+   * copy the data into a buffer.
+   * 
+   * Bare in mind that if the address range is not valid, the function will fail.
+   * 
+   * @param start Address to start copying data from
+   * @param size Number of bytes to copy
+   * @param buffer Buffer to copy the data to. Ensure it is big enough
+   * @param bytes_read Output variable, will hold the number of bytes read 
+   */
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
 
   /**
@@ -180,6 +194,10 @@ class ProcessCapturer {
  private:
  // TODO: review
   void SetSuspendPtr(int ThreadSuspendFunction);
+
+  /**
+   * Function for initializing dynamically imported functions, such as `NtSuspendProcess`.
+   */
   error_handling::ProgramResult InitializeExports();
 
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;

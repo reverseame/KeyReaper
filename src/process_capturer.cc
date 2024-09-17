@@ -365,43 +365,14 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
 
   ProgramResult func_result = OkResult("Data copied");
 
-  *bytes_read = !NULL; // don't init at zero (NULL), otherwise it won't write this variable
+  *bytes_read = !NULL; // don't init at zero (NULL), otherwise the call won't (over)write this variable with the number of bytes read
   BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
   if (result == 0) {
-    { // TODO: only verbose mode
-      printf("Bytes read: %zu\n", *bytes_read);
-      printf("Base address:      0x%p\n", (void*) start);
-      ULONG_PTR last_address_read = (ULONG_PTR) start + *bytes_read;
-      printf("Last address read: 0x%p\n", (void*) last_address_read);
-      printf("Expected last add: 0x%p\n", (void*) ((ULONG_PTR) start + size - 1));
-    }
-
-    MEMORY_BASIC_INFORMATION info;
-    LPCVOID starting_address = (LPCVOID)((ULONG_PTR) start + (ULONG_PTR) *bytes_read + 1);
-    // LPCVOID address = (LPCVOID) ((ULONG_PTR) start + size - 1); // breaking part of the chunk
-    
-    SIZE_T info_bytes = VirtualQueryEx(process_handle, starting_address, &info, sizeof(info));
-
-    printf(" FAULTING ADDRESS: %p\n", starting_address);
-    if (info_bytes == ERROR_INVALID_PARAMETER && info_bytes != sizeof(info)) {
-      printf(" Address above the valid address space\n");
-      func_result = ErrorResult(std::string("Address above the valid address space. Win error: ").append(std::to_string(GetLastError())));
-
-    } else {
-      /*
-      unsigned long usage = 0;
-      for ( LPCVOID address = starting_address;
-        VirtualQueryEx(process_handle, address, &info, sizeof(info)) == sizeof(info);
-        address = (LPCVOID)((ULONG_PTR) address + info.RegionSize) ) {
-        usage += show_module(info);
-      }
-      */
-      func_result = ErrorResult(std::string("Could not read process memory. Error: ").append(std::to_string(GetLastError())));
-    }
+    func_result = ErrorResult( "Could not read process' memory. Windows error: " + error_handling::GetLastErrorAsString() );
 
   } else {
     if (*bytes_read > size) {
-      printf("Data written was bigger than buffer\n");
+      printf("[x] Data written was bigger than buffer\n");
       exit(ERROR_BUFFER_OVERFLOW);
     }
   }
