@@ -335,7 +335,7 @@ error_handling::ProgramResult ProcessCapturer::ResumeSingleThread(DWORD th32Thre
   return func_result;
 }
 
-error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32ThreadID_to_kill) {
+error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32ThreadID_to_kill, DWORD exit_code) {
 
   // Get handle to thread
   HANDLE thread_handle = OpenThread(THREAD_TERMINATE, FALSE, th32ThreadID_to_kill);
@@ -347,7 +347,6 @@ error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32Thread
   ProgramResult func_result = OkResult("Thread successfully terminated");
 
   // Kill thread
-  DWORD exit_code = ERROR_BAD_COMMAND; // exit code (does it matter? probably depends on how the ransomware does the error handling)
   DWORD termination_result = TerminateThread(thread_handle, exit_code);
   if (termination_result == 0) {
     func_result = ErrorResult("Could not terminate thread");
