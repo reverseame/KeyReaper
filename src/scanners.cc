@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <functional>
 #include <algorithm>
+#include <iostream>
 
 #include "key.h"
 #include "scanners.h"
@@ -41,29 +42,67 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
 }
 
 static HMODULE cryptoapi_base_address = NULL;
+static vector<uintptr_t> cryptoapi_functions = vector<uintptr_t>();
+static bool cryptoapi_functions_initialized = false;
 std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
   unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
   
-  if (cryptoapi_base_address == NULL) { // if it was not initialized
-    cryptoapi_base_address = LoadLibraryA("rsaenh.dll");
+  if (!cryptoapi_functions_initialized) {
+    // reset the contents in case there was any remainder from previous executions
+    cryptoapi_functions.clear();
+
+    if (cryptoapi_base_address == NULL) { // if it was not already initialized
+      cryptoapi_base_address = LoadLibraryA("rsaenh.dll");
+    } else {
+      printf(" Could not initialize rsaenh.dll");
+    }
+
+    if (cryptoapi_base_address != NULL) {
+
+      // Assume all initialized correctly and wait for the error
+      cryptoapi_functions_initialized = true;
+
+      for (string func_name : cryptoapi::cryptoapi_function_names) {
+        // Get function address
+        //printf(" Function: %s", func_name.c_str());
+        FARPROC func_address = GetProcAddress(cryptoapi_base_address, func_name.c_str());
+        //printf(" Address:  %p\n", func_address);
+
+        if (func_address != NULL) {
+          // Cast and add it to the list with all the functions
+          cryptoapi_functions.push_back(reinterpret_cast<uintptr_t>(func_address));
+
+        } else {
+          cout << " Could not initialize a function pointer to " << func_name << endl;
+          cout << error_handling::GetLastErrorAsString() << endl;
+          cryptoapi_functions_initialized = false;
+          break;
+        }
+      }      
+    }
   }
-  
-  if (cryptoapi_base_address != NULL) {
 
-    printf("rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
+  if (cryptoapi_functions_initialized) {
 
-    // Precomputed offsets vs GetProcAddress
-    //FARPROC cgk_address = GetProcAddress(cryptoapi_base_address, "CryptGenKey");
+    printf(" rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
+
+    /* PRECOMPUTED OFFSETS 
     vector<uintptr_t> local_offsets = cryptoapi::cryptoapi_offsets;
     for (auto &offset : local_offsets) {
       offset += (uintptr_t) cryptoapi_base_address;
-    }
+    }*/
+
+    /* PRINT ALL FUNCTION NAMES AND OFFSETS
+    for (size_t i = 0; i < cryptoapi_functions.size(); i++) {
+      // cout << " " << cryptoapi::cryptoapi_function_names[i] << ": " << cryptoapi_functions[i] << endl;
+      printf("%s: 0x%p\n", cryptoapi::cryptoapi_function_names[i].c_str(), (void*) cryptoapi_functions[i]);
+    }*/
 
     uintptr_t pos = 0;
-    size_t pattern_size = local_offsets.size() * sizeof(void*);
+    size_t pattern_size = cryptoapi_functions.size() * sizeof(void*);
     unsigned char* byte_pattern = (unsigned char*) malloc(pattern_size);
-    for (auto& offset : local_offsets) {
+    for (auto& offset : cryptoapi_functions) {
       memcpy(byte_pattern + pos, &offset, sizeof(void*));
       pos += sizeof(void*);
     }
@@ -129,7 +168,7 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
     free(byte_pattern);
 
   } else {
-    printf("Could not load rsaenh.dll\n");
+    printf("Could not load initialize necessary CryptoAPI functions\n");
   }
   return found_keys;
 }

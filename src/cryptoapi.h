@@ -3,6 +3,7 @@
 
 #include <Windows.h>
 #include <vector>
+#include <string>
 
 namespace key_scanner {
 namespace cryptoapi {
@@ -42,6 +43,13 @@ const std::vector<uintptr_t> cryptoapi_offsets = {
   CPSETKEYPARAM_OFFSET, CPGETKEYPARAM_OFFSET, CPEXPORTKEY_OFFSET,
   CPIMPORTKEY_OFFSET, CPENCRYPT_OFFSET, CPDECRYPT_OFFSET,
   CPDUPLICATEKEY_OFFSET
+};
+
+const std::vector<std::string> cryptoapi_function_names = {
+  "CPGenKey", "CPDeriveKey", "CPDestroyKey",
+  "CPSetKeyParam", "CPGetKeyParam", "CPExportKey",
+  "CPImportKey", "CPEncrypt", "CPDecrypt",
+  "CPDuplicateKey"
 };
 
 struct key_data_s {
