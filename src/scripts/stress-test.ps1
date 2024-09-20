@@ -19,4 +19,4 @@ foreach ($number in 1..100) {
 # Stop the ransomware and calculte the average
 Stop-Process -Id $process.Id -Force
 $average = ($executionTimes | Measure-Object -Average).Average
-Write-Output "Average execution time $average"
+Write-Output "Average execution time $average seconds"
