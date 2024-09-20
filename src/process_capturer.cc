@@ -8,7 +8,6 @@
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
-using StructureScanner = key_scanner::StructureScan;
 using Key = key_scanner::Key;
 
 #include <vector>

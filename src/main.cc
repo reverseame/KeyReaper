@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
     //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
   
-    StructureScan scanner = StructureScan::StructureScan();
+    CryptoAPIScan scanner = CryptoAPIScan::CryptoAPIScan();
     keys.merge( scanner.Scan(buffer, heap) ); // add keys
 
     free(buffer); buffer = NULL;

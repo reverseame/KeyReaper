@@ -16,7 +16,7 @@ using HeapInformation = process_manipulation::HeapInformation;
 
 namespace key_scanner {
 
-void ScannerBuilder::AddStructureScan() {
+void ScannerBuilder::AddCryptoAPIScan() {
   do_structure_scan_ = true;
 }
 
@@ -34,18 +34,18 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
   }
 
   if (do_structure_scan_) {
-    StructureScan s = StructureScan();
-    strategies->push_back(make_unique<StructureScan>(s));
+    CryptoAPIScan s = CryptoAPIScan();
+    strategies->push_back(make_unique<CryptoAPIScan>(s));
   }
 
   return strategies;
 }
 
-static HMODULE cryptoapi_base_address = NULL;
-static vector<uintptr_t> cryptoapi_functions = vector<uintptr_t>();
-static bool cryptoapi_functions_initialized = false;
+HMODULE CryptoAPIScan::cryptoapi_base_address = NULL;
+vector<uintptr_t> CryptoAPIScan::cryptoapi_functions = vector<uintptr_t>();
+bool CryptoAPIScan::cryptoapi_functions_initialized = false;
 
-void StructureScan::InitializeCryptoAPI() {
+void CryptoAPIScan::InitializeCryptoAPI() {
   if (!cryptoapi_functions_initialized) {
     // reset the contents in case there was any remainder from previous executions
     cryptoapi_functions.clear();
@@ -78,7 +78,7 @@ void StructureScan::InitializeCryptoAPI() {
     }
   }
 }
-std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
+std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
   unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
   

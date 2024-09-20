@@ -16,12 +16,17 @@ class ScanStrategy {
   virtual std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const = 0;
 };
 
-class StructureScan : public ScanStrategy {
+class CryptoAPIScan : public ScanStrategy {
  public:
-  StructureScan() = default;
+  CryptoAPIScan() = default;
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
 
   static void InitializeCryptoAPI();
+
+ private:
+  static bool cryptoapi_functions_initialized;
+  static std::vector<uintptr_t> cryptoapi_functions;
+  static HMODULE cryptoapi_base_address;
 };
 
 class RoundKeyScan : public ScanStrategy {
@@ -34,7 +39,7 @@ class ScannerBuilder {
  public:
   ScannerBuilder() = default;
 
-  void AddStructureScan();
+  void AddCryptoAPIScan();
   void AddRoundKeyScan();
 
   std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> GetScanners();
