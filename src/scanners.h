@@ -20,6 +20,8 @@ class StructureScan : public ScanStrategy {
  public:
   StructureScan() = default;
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
+
+  static void InitializeCryptoAPI();
 };
 
 class RoundKeyScan : public ScanStrategy {

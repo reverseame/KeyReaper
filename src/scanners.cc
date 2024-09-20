@@ -44,30 +44,25 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
 static HMODULE cryptoapi_base_address = NULL;
 static vector<uintptr_t> cryptoapi_functions = vector<uintptr_t>();
 static bool cryptoapi_functions_initialized = false;
-std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
-  unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
-  
+void StructureScan::InitializeCryptoAPI() {
   if (!cryptoapi_functions_initialized) {
     // reset the contents in case there was any remainder from previous executions
     cryptoapi_functions.clear();
 
-    if (cryptoapi_base_address == NULL) { // if it was not already initialized
+    // if it was not already initialized
+    if (cryptoapi_base_address == NULL) {
       cryptoapi_base_address = LoadLibraryA("rsaenh.dll");
     } else {
       printf(" Could not initialize rsaenh.dll");
     }
 
     if (cryptoapi_base_address != NULL) {
-
       // Assume all initialized correctly and wait for the error
       cryptoapi_functions_initialized = true;
 
       for (string func_name : cryptoapi::cryptoapi_function_names) {
-        // Get function address
-        //printf(" Function: %s", func_name.c_str());
         FARPROC func_address = GetProcAddress(cryptoapi_base_address, func_name.c_str());
-        //printf(" Address:  %p\n", func_address);
 
         if (func_address != NULL) {
           // Cast and add it to the list with all the functions
@@ -82,23 +77,23 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
       }      
     }
   }
+}
+std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
+  unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
+  
+  InitializeCryptoAPI();
   if (cryptoapi_functions_initialized) {
 
     printf(" rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
 
-    /* PRECOMPUTED OFFSETS 
+    /* [OLD] PRECOMPUTED OFFSETS
     vector<uintptr_t> local_offsets = cryptoapi::cryptoapi_offsets;
     for (auto &offset : local_offsets) {
       offset += (uintptr_t) cryptoapi_base_address;
     }*/
 
-    /* PRINT ALL FUNCTION NAMES AND OFFSETS
-    for (size_t i = 0; i < cryptoapi_functions.size(); i++) {
-      // cout << " " << cryptoapi::cryptoapi_function_names[i] << ": " << cryptoapi_functions[i] << endl;
-      printf("%s: 0x%p\n", cryptoapi::cryptoapi_function_names[i].c_str(), (void*) cryptoapi_functions[i]);
-    }*/
-
+    // Copy the pattern to a buffer
     uintptr_t pos = 0;
     size_t pattern_size = cryptoapi_functions.size() * sizeof(void*);
     unsigned char* byte_pattern = (unsigned char*) malloc(pattern_size);
@@ -115,20 +110,19 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
     */    
 
     auto searcher = boyer_moore_horspool_searcher(byte_pattern, byte_pattern + pattern_size);
-    //unsigned char* search_result = search(input_buffer, input_buffer + buffer_size, searcher);
 
     size_t match_count = 0;
     unsigned char* search_start = input_buffer;
     unsigned char* search_result;
 
-    while ((search_result = search(search_start, input_buffer + heap_info.size, searcher)) != input_buffer + heap_info.size) {
+    // While there are matches left
+    while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
       uintptr_t position = search_result - input_buffer;
-      //printf("Pattern found at position: d%td\n", position);
+      match_count++;
       printf(" HCRYPTKEY structure found at [%p]\n", search_result);
       // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
 
-      match_count++;
-      // TODO follow structure pointers to key
+      // XOR with the magic constant
       cryptoapi::HCRYPTKEY* h_crypt_key = reinterpret_cast<cryptoapi::HCRYPTKEY*>(search_result);
       ULONG_PTR unk_struct = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
 
@@ -170,6 +164,7 @@ std::unordered_set<Key, Key::KeyHashFunction> StructureScan::Scan(unsigned char 
   } else {
     printf("Could not load initialize necessary CryptoAPI functions\n");
   }
+
   return found_keys;
 }
 

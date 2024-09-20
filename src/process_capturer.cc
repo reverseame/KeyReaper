@@ -12,6 +12,7 @@ using StructureScanner = key_scanner::StructureScan;
 using Key = key_scanner::Key;
 
 #include <vector>
+#include <algorithm>
 using namespace std;
 
 #include <iostream>
@@ -94,6 +95,86 @@ SIZE_T show_module(MEMORY_BASIC_INFORMATION info) {
 
 namespace process_manipulation {
 nt_suspend::pNtSuspendProcess ProcessCapturer::fNtPauseProcess = nullptr; // static class member
+
+ULONG_PTR BlockInformation::GetBaseAddress() const { return base_address_; }
+ULONG_PTR BlockInformation::GetLastAddress() const { return base_address_ + size_ - 1; }
+
+SIZE_T BlockInformation::GetSize() const { return size_; }
+
+bool BlockInformation::operator<(const BlockInformation& other) const {
+  return base_address_ < other.base_address_;
+}
+
+bool BlockInformation::operator==(const BlockInformation& other) const {
+  return base_address_ == other.base_address_;
+}
+
+bool BlockInformation::IsAdjacent(const BlockInformation other) const {
+  return (other.base_address_ == base_address_ + size_);
+}
+
+void BlockInformation::CoalesceWith(const BlockInformation new_block) {
+  size_ += new_block.GetSize();
+}
+
+SIZE_T HeapInformation::GetSize() const {
+  if (blocks_.empty()) {
+    return 0;
+  }
+
+  return final_address_ - base_address_;
+}
+
+ULONG_PTR HeapInformation::GetBaseAddress() const {
+  return base_address_;
+}
+
+ULONG_PTR HeapInformation::GetLastAddress() const {
+  return final_address_;
+}
+
+const vector<BlockInformation> HeapInformation::GetBlocks() const {
+  return blocks_;
+}
+
+bool HeapInformation::IsAddressInHeap(ULONG_PTR pointer) const {
+  return pointer <= GetLastAddress() && pointer >= GetBaseAddress();
+};
+
+bool HeapInformation::IsBlockInHeap(BlockInformation block) const {
+  return IsAddressInHeap(block.GetBaseAddress()) && IsAddressInHeap(block.GetLastAddress());
+}
+
+bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const {
+  if (!IsAddressInHeap(*pointer)) {
+    
+    printf(" > Pointer: %p\n", (void*) *pointer);
+    printf(" > Final:   %p\n", (void*) GetLastAddress());
+    printf(" > Base:    %p\n", (void*) GetBaseAddress());
+    
+    return false;
+  
+  } else {
+    *pointer -= GetBaseAddress();
+    *pointer += new_base_address;
+    return true;
+  }
+}
+
+void HeapInformation::AddBlock(BlockInformation new_block) {
+
+  ULONG_PTR new_block_last_add = new_block.GetBaseAddress() + new_block.GetSize() - 1;
+  if (final_address_ < new_block_last_add) final_address_ = new_block_last_add;
+
+  // If blocks are adjacent, they get coalesced
+  if (!blocks_.empty() && blocks_.back().IsAdjacent(new_block)) {
+    blocks_.back().CoalesceWith(new_block);
+
+  } else {
+    // Add block to list
+    blocks_.push_back(new_block);
+  }
+}
 
 ProcessCapturer::ProcessCapturer(int pid) 
     : pid_(pid), suspended_(false), is_privileged_(false) {
@@ -340,7 +421,7 @@ error_handling::ProgramResult ProcessCapturer::InitializeExports() {
   return func_result;
 }
 
-bool ProcessCapturer::IsProcessAlive() {
+bool ProcessCapturer::IsProcessAlive() const {
   bool active = false;
   HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION , FALSE, pid_);
 
@@ -383,8 +464,9 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   return func_result;
 }
 
-ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* heaps) {
-  printf("Getting heap\n");
+
+ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heaps) {
+  printf("Getting and coalescing heaps\n");
 
   HEAPLIST32 hl;
   HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
@@ -396,98 +478,45 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   }
 
   ProgramResult func_result = OkResult("Heap enumerated successfully");
-
   if( Heap32ListFirst(hHeapSnap, &hl)) {
     do {
       HEAPENTRY32 he;
-      HEAPENTRY32 prev_he; // temp
       ZeroMemory(&he, sizeof(HEAPENTRY32));
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
-
+        SIZE_T orignial_block_amount = 0;
         HeapInformation heap_data = HeapInformation(he);
-        prev_he = he;
-
-        SIZE_T total_size = 0;
         do {
-          total_size += he.dwBlockSize;
+          // Don't add free blocks, since they will fail to copy
+          if (he.dwFlags != LF32_FREE) {
+            orignial_block_amount++;
+
+            heap_data.AddBlock(
+              BlockInformation(he.dwAddress, he.dwBlockSize)
+            );
+          }
           he.dwSize = sizeof(HEAPENTRY32);
-
-          /*
-          {
-            printf("Block base: %p\n", (void*) he.dwAddress);
-            printf("Block size: %u\n", he.dwBlockSize);
-            printf("Final addr: %p\n", he.dwAddress + he.dwBlockSize - 1);
-            printf("Next addre: %p\n", he.dwAddress + he.dwBlockSize);
-            //printf("---\n");
-          }
-          */
-
-          // Q: what if the blocks are not adjacent
-            // A1: As long as the block size stays the same,
-            //     it should be no problem
-          if (prev_he.dwAddress + prev_he.dwBlockSize != he.dwAddress) {
-            printf(" [!] Blocks are not adjacent\n");
-            /*
-            
-            printf("   * Block base: %p\n", (void*) he.dwAddress);
-            printf("   * Block size: %x\n", he.dwBlockSize);
-            printf("   * Final addr: %08X\n", he.dwAddress + he.dwBlockSize - 1);
-            printf("   * Next addre: %08X\n", he.dwAddress + he.dwBlockSize);
-            printf("--\n");
-
-            printf("    * Prev add:   %08X\n", prev_he.dwAddress);
-            printf("    * Prev size:  %08X\n", prev_he.dwSize);
-            printf("    * Prev final: %08X\n", prev_he.dwAddress + prev_he.dwSize);
-            printf("--\n");
-            
-            printf("   * Expected: %08X\n", prev_address);
-            printf("   * Actual:   %08X\n", he.dwAddress);
-            printf("   * Type:     ");
-            if (he.dwFlags == LF32_MOVEABLE) printf("MOVEABLE\n");
-            else if (he.dwFlags == LF32_FREE) printf("FREE\n");
-            else if (he.dwFlags == LF32_FIXED) printf("FIXED\n");
-            else printf("UNKOWN [h%x d%u] \n", he.dwFlags, he.dwFlags);
-
-            printf("---\n\n");*/
-          }
-          prev_he = he;
-
-          // TODO: may consider ruling out free blocks LF32_FREE
-          // Q: what if they are scattered?
-          // (The heap manager probably tries to minimize fragmentation)
-          /*
-          {
-            DWORD flags = he.dwFlags;
-            if (flags == LF32_FREE) {printf("FREE (%d)\t", flags);}
-            else if (flags == LF32_FIXED) {printf("FIXED (%d)\t", flags);}
-            else if (flags == LF32_MOVEABLE) {printf("MOVEABLE (%d)\t", flags);}
-            else {printf("Else: %d\t", flags);}
-            printf("\n----\n");
-          }
-          */
         } while ( Heap32Next(&he) );
 
-        // If the last block is free, then is the top chunk
-        if (he.dwFlags == LF32_FREE) {
-          // It will generate invalid addresses, therefore we should remove it
-          total_size -= he.dwBlockSize;
-        }
+        // Order does not matter, since the reconstruction adjusts the position accordingly
+        // sort(heap_data.blocks_.begin(), heap_data.blocks_.end());
 
-        heap_data.size = total_size;
-        heap_data.final_address = total_size - 1 + heap_data.base_address;
+        // Add the enumerated heap to the list
         heaps->push_back(heap_data);
 
         printf("======\n");
         printf("Heap ID: %zd\n", hl.th32HeapID );
-        printf("Base address: 0x%p\n", (void*) heap_data.base_address );
-        printf("Size of heap: %zu\n", total_size);
-        printf("Final address: 0x%p\n", (void*) heap_data.final_address);
+        printf(" Base address: 0x%p\n", (void*) heap_data.GetBaseAddress());
+        printf(" Size of heap: %zu\n", heap_data.GetSize());
+        printf(" Final address: 0x%p\n", (void*) heap_data.GetLastAddress());
+        printf("  - Original block amount:   %zu\n", orignial_block_amount);
+        printf("  - Blocks after coallition: %zu\n", heap_data.GetBlocks().size());
         printf("\n");
       }
+
       hl.dwSize = sizeof(HEAPLIST32);
-    } while (Heap32ListNext( hHeapSnap, &hl));
+    } while ( Heap32ListNext(hHeapSnap, &hl) );
   
   } else { 
     printf ("Cannot list first heap (%d)\n", GetLastError());
@@ -498,102 +527,50 @@ ProgramResult ProcessCapturer::GetProcessHeaps(std::vector<HeapInformation>* hea
   return func_result;
 }
 
-ProgramResult ProcessCapturer::CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** output_buffer, SIZE_T* size) {
-  printf("Getting heaps\n");
+ProgramResult ProcessCapturer::CopyHeapData(HeapInformation heap_to_copy, unsigned char **output_buffer) {
+  printf("Copying heap data\n");
 
-  HEAPLIST32 hl;
-  HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
-  hl.dwSize = sizeof(HEAPLIST32);
-
-  if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
-    printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
-    return ErrorResult("Could not open handle to snapshot");
+  if (heap_to_copy.GetBlocks().empty()) {
+    return ErrorResult("This heap is either empty or data not properly initialized. Please call EnumerateHeaps before this function");
   }
 
-  ProgramResult func_result = OkResult("Heaps copied successfully");
+  HANDLE process_handle = OpenProcess( PROCESS_VM_READ , FALSE, pid_ );
 
-  HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
   if (process_handle == NULL) {
     return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
-  unsigned char* buffer = NULL;
-  SIZE_T position = 0;
+  ProgramResult func_result = OkResult("Heap copied succcessfully");
+
+  // Reservar la memoria para todo el heap
+  unsigned char* buffer = (unsigned char*) calloc(heap_to_copy.GetSize(), sizeof(unsigned char*));
+
   SIZE_T failed_reads = 0;
-  bool found = false;
+  for (BlockInformation block : heap_to_copy.GetBlocks()) {
 
-  // TODO: consider controlling the heap mutex with HeapLock and also check 
-  //       if it was already locked
-  // WARN: may be dangerous over system processes (a probable target in case of injection)
-  // https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaplock
-  if( Heap32ListFirst(hHeapSnap, &hl)) {
-    do {
-      HEAPENTRY32 he;
-      ZeroMemory(&he, sizeof(HEAPENTRY32));
-      he.dwSize = sizeof(HEAPENTRY32);
+    // Copy the block to its relative position in the buffer
+    ULONG_PTR block_position = block.GetBaseAddress() - heap_to_copy.GetBaseAddress();
+    if ( heap_to_copy.IsBlockInHeap(block) ) {
+      SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise the call won't (over)write this variable with the number of bytes read
+      BOOL read_ok = ReadProcessMemory(process_handle, (void*) block.GetBaseAddress(), buffer + block_position, block.GetSize(), &bytes_read);
 
-      if (hl.th32HeapID != heap_to_copy.id) { continue; }
-      found = true;
-      printf("Total size: %zu\n", heap_to_copy.size);
+      if (!read_ok) {
+        if (GetLastError() == ERROR_PARTIAL_COPY) { // Acceptable error.
+          // TODO: check the page in which are located to ensure we have enough permissions
+          failed_reads += block.GetSize() - bytes_read;
 
-      buffer = (unsigned char*) calloc(sizeof(unsigned char), heap_to_copy.size);
-      if (buffer == NULL) {
-        func_result = ErrorResult("Could not allocate memory for the heap data");
-      
-      } else if ( Heap32First(&he, pid_, hl.th32HeapID )) {
-        
-        // TODO: instead of checking each heap block, check the pages within
-        //       this could reveal pages hiddenly used with old valid addresses?
-        do {
-          printf("[%zu]\r", position);
-          bool nullify = false;
-          SIZE_T bytes_read = !NULL;
-
-          // LF32_MOVEABLE??
-          if (he.dwFlags == LF32_FREE) {
-            nullify = true;
-            bytes_read = 0;
-
-          } else {
-            he.dwSize = sizeof(HEAPENTRY32);
-            SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise, it will take the parameter as optional
-            BOOL result = ReadProcessMemory(process_handle, (LPCVOID) he.dwAddress, (LPVOID) (buffer + position), he.dwBlockSize, &bytes_read);
-            if (result == 0) { // read error
-              //printf("Error copying at buffer position %d. Retrieved %u bytes, filling up to %u with FF\n", position, bytes_read, he.dwBlockSize - 1);
-              //printf("Windows error: %d\n", GetLastError()); 
-              nullify = true;
-            }
-          } 
-
-          if (nullify) {
-            // Nullifiy region
-            failed_reads += he.dwBlockSize - bytes_read;
-            for (size_t i = bytes_read + 1; i < he.dwBlockSize; i++) {
-              buffer[position + i] = 0xFF;
-            }
-          }
-      
-          position += he.dwBlockSize;
-
-        } while ( Heap32Next(&he) && position < heap_to_copy.size);
-        // && position < heap_to_copy.size
-        // if we want not to consider the top chunk
+        } else {
+          cout << error_handling::GetLastErrorAsString() << endl; 
+        }
       }
-
-      hl.dwSize = sizeof(HEAPLIST32);
-    } while (Heap32ListNext( hHeapSnap, &hl) && !found);
-
-    printf("Failed reads: %zu\n", failed_reads);
-    *size = position;
-    *output_buffer = buffer;
-    CloseHandle(process_handle);
-  
-  } else { 
-    printf ("Cannot list first heap (%d)\n", GetLastError());
-    func_result = ErrorResult("Cannot list first heap");
+    } else {
+      printf("Block out of heap?\n");
+    }
   }
-   
-  CloseHandle(hHeapSnap);
+
+  *output_buffer = buffer;
+  cout << "Failed reads: " << failed_reads << endl;
+  CloseHandle(process_handle);
   return func_result;
 }
 
@@ -654,7 +631,7 @@ error_handling::ProgramResult ProcessCapturer::ObtainSeDebug() {
   return func_result;
 }
 
-bool ProcessCapturer::IsPrivileged() {
+bool ProcessCapturer::IsPrivileged() const {
   return is_privileged_;
 }
 
@@ -668,7 +645,7 @@ void ProcessCapturer::PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, UL
   } printf("\n");
 }
 
-bool ProcessCapturer::IsSuspended() {
+bool ProcessCapturer::IsSuspended() const {
   return suspended_;
 }
 

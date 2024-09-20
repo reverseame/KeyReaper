@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
   cout << pr.GetResultInformation() << endl;
 
   vector<HeapInformation> heaps;
-  ProgramResult r = cp.GetProcessHeaps(&heaps);
+  ProgramResult r = cp.EnumerateHeaps(&heaps);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     PrintLastError(TEXT("GETHEAP"));
@@ -90,16 +90,17 @@ int main(int argc, char *argv[]) {
 
   unordered_set<Key, Key::KeyHashFunction> keys;
   unsigned int heap_counter = 1;
-  for(const HeapInformation& heap : heaps) {
-    printf("============\nid: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.base_address, (void*) heap.final_address);
+  for(HeapInformation heap : heaps) {
+    printf("============\nHeap: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
     unsigned char* buffer = NULL;
-    SIZE_T size;
-    ProgramResult pr2 = cp.CopyProcessHeap(heaps[0], &buffer, &size);
-    cout << "V2 heap copy result: " <<  pr2.GetResultInformation() << endl;
-    //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
+    ProgramResult pr2 = cp.CopyHeapData(heap, &buffer);
+    cout << "Copy result: " <<  pr2.GetResultInformation() << endl;
+    if (pr2.IsErr()) continue;
 
+    //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
+  
     StructureScan scanner = StructureScan::StructureScan();
-    keys.merge( scanner.Scan(buffer, heap) );
+    keys.merge( scanner.Scan(buffer, heap) ); // add keys
 
     free(buffer); buffer = NULL;
   }

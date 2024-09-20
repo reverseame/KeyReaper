@@ -19,35 +19,50 @@ typedef NTSTATUS(NTAPI *pNtSuspendProcess)(
 
 namespace process_manipulation {
 
+class BlockInformation {
+ public:
+  BlockInformation(ULONG_PTR base_address, SIZE_T size) : 
+    base_address_(base_address), size_(size) {}
+
+  ULONG_PTR GetBaseAddress() const;
+  ULONG_PTR GetLastAddress() const;
+  SIZE_T GetSize() const;
+
+  bool IsAdjacent(const BlockInformation other) const;
+  void CoalesceWith(const BlockInformation new_block);
+
+  bool operator<(const BlockInformation& other) const;
+  bool operator==(const BlockInformation& other) const;
+
+ private:
+  ULONG_PTR base_address_; // dwAddress
+  SIZE_T size_; // dwBlockSize
+};
+
 class HeapInformation {
  public:
   HeapInformation(HEAPENTRY32 he) : 
-      id(he.th32HeapID), base_address(he.dwAddress), final_address(NULL), size(0){};
+      id_(he.th32HeapID), base_address_(he.dwAddress), blocks_(), final_address_(he.dwAddress + he.dwBlockSize - 1) {};
 
-  inline bool IsAddressInHeap(LPVOID pointer) {
-    return (ULONG_PTR) pointer <= (ULONG_PTR) final_address && (ULONG_PTR) pointer >= (ULONG_PTR) base_address;
-  };
+  /**
+   * Retrieves the size of the heap
+   */
+  SIZE_T GetSize() const;
+  ULONG_PTR GetBaseAddress() const;
+  ULONG_PTR GetLastAddress() const;
+  const std::vector<BlockInformation> GetBlocks() const;
 
-  inline bool RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) {
-    if (!IsAddressInHeap((void*) *pointer)) {
-      
-      printf(" > Pointer: %p\n", (void*) *pointer);
-      printf(" > Final:   %p\n", (void*) final_address);
-      printf(" > Base:    %p\n", (void*) base_address);
-      
-      return false;
-    
-    } else {
-      *pointer -= this->base_address;
-      *pointer += new_base_address;
-      return true;
-    }
-  }
+  bool IsAddressInHeap(ULONG_PTR pointer) const;
+  bool IsBlockInHeap(BlockInformation block) const;
+  bool RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const;
 
-  ULONG_PTR id;
-  ULONG_PTR base_address;
-  ULONG_PTR final_address;
-  SIZE_T size;
+  void AddBlock(BlockInformation new_block);
+
+ private:
+  ULONG_PTR id_;
+  ULONG_PTR base_address_;
+  ULONG_PTR final_address_;
+  std::vector<BlockInformation> blocks_;
 };
 
 class ProcessCapturer {
@@ -145,11 +160,7 @@ class ProcessCapturer {
    */
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
 
-  /**
-   * Retrieves the information of all the heaps of the process. It is necessary
-   * to have elevated privileges to perform this action.
-   */
-  error_handling::ProgramResult GetProcessHeaps(std::vector<HeapInformation>* heaps);
+  error_handling::ProgramResult EnumerateHeaps(std::vector<HeapInformation>* heaps);
 
   /**
    * From the information about the heap, copies the whole heap to a buffer.
@@ -162,15 +173,18 @@ class ProcessCapturer {
    *  * If the block cannot be copied or is marked as free will be filled with 0xFF
    * 
    * ## Arguments
-   *  * [in] HeapInformation heap. This is obtained through the GetProcessHeaps function
-   *  * [out] unsigned char** buffer. This is where the function will place the allocated buffer with the heap data.
-   *  * [out] SIZE_T size. Number of bytes written
+   *  * @param heap_to_copy This is obtained through the EnumerateHeaps function,
+   *                          and contains information about the strcuture of the heap
+   *  * @param buffer This is where the function will place the allocated buffer with the heap data.
+   *                  The allocation is performed by the function, therefore the user only needs to 
+   *                  supply a pointer. The size of the buffer will be the same as the heap.
+   * 
    */
-  error_handling::ProgramResult CopyProcessHeap(HeapInformation heap_to_copy, unsigned char** buffer, SIZE_T* size);
+  error_handling::ProgramResult CopyHeapData(HeapInformation heap_to_copy, unsigned char** buffer);
 
   // Privileges
   error_handling::ProgramResult ObtainSeDebug();
-  bool IsPrivileged();
+  bool IsPrivileged() const;
 
   void static PrintMemory(unsigned char* buffer, SIZE_T num_of_bytes, ULONG_PTR starting_visual_address = 0x0);
 
@@ -183,13 +197,13 @@ class ProcessCapturer {
    * 
    * This function may be used to recover this information
    */
-  bool IsSuspended();
+  bool IsSuspended() const;
 
   /**
    * Determines if the process ended or is alive (not killed), independently of
    * the internal status (paused or running)
   */
-  bool IsProcessAlive();
+  bool IsProcessAlive() const;
 
  private:
  // TODO: review
