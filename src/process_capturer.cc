@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <Windows.h>
+#include <windows.h>
 #include <tlhelp32.h>
 #pragma comment(lib, "Kernel32.lib")
 

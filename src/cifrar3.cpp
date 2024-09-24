@@ -1,6 +1,6 @@
 // Compilar con: cl /EHsc /std:c++17 .\cifrar3.cpp Advapi32.lib
 
-#include <Windows.h>
+#include <windows.h>
 #include <wincrypt.h>
 #include <stdio.h>
 #include <iostream>

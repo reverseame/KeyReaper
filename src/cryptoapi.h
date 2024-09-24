@@ -1,7 +1,7 @@
 #ifndef CUSTOM_CRYPTOAPI_H
 #define CUSTOM_CRYPTOAPI_H
 
-#include <Windows.h>
+#include <windows.h>
 #include <vector>
 #include <string>
 

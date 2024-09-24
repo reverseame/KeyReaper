@@ -1,6 +1,6 @@
 #include "program_result.h"
 
-#include <Windows.h>
+#include <windows.h>
 
 namespace error_handling {
 

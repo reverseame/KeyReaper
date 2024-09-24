@@ -1,7 +1,7 @@
 #ifndef KEYSCANNER_H
 #define KEYSCANNER_H
 
-#include <Windows.h>
+#include <windows.h>
 #include <unordered_set>
 
 #include "key.h"

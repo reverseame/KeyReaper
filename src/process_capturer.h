@@ -1,6 +1,6 @@
 #ifndef PROCESSCAPTURER_H
 #define PROCESSCAPTURER_H
-#include <Windows.h>
+#include <windows.h>
 #include <vector>
 #include <tlhelp32.h>
 

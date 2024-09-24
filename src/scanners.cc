@@ -1,5 +1,5 @@
 #include <memory>
-#include <Windows.h>
+#include <windows.h>
 #include <functional>
 #include <algorithm>
 #include <iostream>
