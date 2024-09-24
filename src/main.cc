@@ -1,7 +1,7 @@
 // Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
 #include <windows.h>
 
-#include <Intsafe.h>
+#include <intsafe.h>
 #include <string>
 #include <iostream>
 #include <vector>
