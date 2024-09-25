@@ -34,3 +34,23 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/cifrar3.cpp
 )
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+
+# --- Injected DLL -----------------
+set(LIBRARY_NAME "evil")
+add_library(${LIBRARY_NAME} SHARED
+    ${SOURCE_BASE_DIR}/program_result.cc
+    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/cryptoapi_key_exporter.cc
+)
+
+set_target_properties(${LIBRARY_NAME} PROPERTIES OUTPUT_NAME "${LIBRARY_NAME}_${ARCHITECTURE_APPEND}")
+
+# --- Test Injector ----------------
+set(EXECUTABLE_NAME "injector")
+add_executable(${EXECUTABLE_NAME}
+    ${SOURCE_BASE_DIR}/program_result.cc
+    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/injector.cc
+)
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
