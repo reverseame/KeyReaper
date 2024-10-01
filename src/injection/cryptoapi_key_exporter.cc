@@ -17,25 +17,24 @@ using namespace process_injection;
 DWORD timeout_millis = 20000;
 
 extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
-  NamedPipeServer server = NamedPipeServer(kPipeName);
+  NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
+  ShowGUIMessage("Creating server");
   server.CreateServer();
-  error_handling::ProgramResult pr = server.WaitForConnection(timeout_millis);
-  MessageBoxA(NULL, pr.GetResultInformation().c_str(), "Injection, yes!", MB_OK);
+  ShowGUIMessage("Waiting for connection");
+  error_handling::ProgramResult pr = server.WaitForConnection();
+  ShowGUIMessage(pr.GetResultInformation());
   if (pr.IsOk()) {
+    ShowGUIMessage("Entering server loop");
     server.ServerLoop();
-  }
+  } else ShowGUIMessage("Did not enter server loop due to previous error");
+  ShowGUIMessage("Closing server");
   server.CloseServer();
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   switch (nReason) {
   case DLL_PROCESS_ATTACH:
-    MessageBoxA(
-      NULL,
-      "Successfully injected!",
-      "Evil DLL",
-      MB_OK
-    );
+    ShowGUIMessage("Successfully injected");
     break;
   case DLL_PROCESS_DETACH:
     break;
