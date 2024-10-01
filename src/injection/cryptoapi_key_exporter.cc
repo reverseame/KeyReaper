@@ -16,7 +16,7 @@ using namespace process_injection;
 
 DWORD timeout_millis = 20000;
 
-void StartServer() {
+extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
   NamedPipeServer server = NamedPipeServer(kPipeName);
   server.CreateServer();
   error_handling::ProgramResult pr = server.WaitForConnection(timeout_millis);
@@ -32,11 +32,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   case DLL_PROCESS_ATTACH:
     MessageBoxA(
       NULL,
-      "Hello from evil.dll!",
-      "Injection, yes!",
+      "Successfully injected!",
+      "Evil DLL",
       MB_OK
     );
-    StartServer();
     break;
   case DLL_PROCESS_DETACH:
     break;
