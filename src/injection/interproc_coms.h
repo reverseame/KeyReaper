@@ -15,7 +15,7 @@ namespace command_messages {
 
 struct CommandMessage {
   unsigned int command;
-  LPARAM first_arg; // architecture dependant
+  WPARAM first_arg; // architecture dependant
 };
 
 } // namespace messages
@@ -28,8 +28,9 @@ class NamedPipeCommunicator {
  public:
   NamedPipeCommunicator(const char* pipe_name, DWORD operation_timeout) :
       pipe_handle_ (INVALID_HANDLE_VALUE), pipe_name_(pipe_name), timeout_millis_(operation_timeout) {};
-  error_handling::ProgramResult ReadMessage(char* buffer, size_t buffer_size);
-  error_handling::ProgramResult WriteMessage(char* buffer, size_t buffer_size);
+  error_handling::ProgramResult ReadMessage(BYTE* buffer, size_t buffer_size);
+  error_handling::ProgramResult WriteMessage(BYTE* buffer, size_t buffer_size);
+  error_handling::ProgramResult WriteError(size_t original_message_size, BYTE fill_byte);
 
  protected:
   HANDLE pipe_handle_;
@@ -51,10 +52,11 @@ class NamedPipeServer : public NamedPipeCommunicator {
 
   // Communication operations
   error_handling::ProgramResult ReadCommand(command_messages::CommandMessage* command);
-  error_handling::ProgramResult SendKeyBlob(ULONG_PTR key_handle);
+  error_handling::ProgramResult SendKey(ULONG_PTR key_handle);
 
-  // Process operations
-  error_handling::ProgramResult GetKeyBlob(ULONG_PTR key_handle);
+ private:
+  error_handling::ProgramResult GetKeySize(ULONG_PTR key_handle);
+  error_handling::ProgramResult SendKeyBlob(ULONG_PTR key_handle, DWORD key_size);
 };
 
 class NamedPipeClient : public NamedPipeCommunicator {
@@ -63,12 +65,18 @@ class NamedPipeClient : public NamedPipeCommunicator {
       NamedPipeCommunicator(pipe_name, operation_timeout) {};
   ~NamedPipeClient() { CloseConnection(); };
 
+  // Communication
   error_handling::ProgramResult ConnectToPipe();
   error_handling::ProgramResult CloseConnection();
-  
-  error_handling::ProgramResult SendKeyHandle(ULONG_PTR key_handle);
+
+  // Operations
+  error_handling::ProgramResult GetKey(ULONG_PTR key_handle, BYTE** plain_key_blob, DWORD* plain_blob_size);
   error_handling::ProgramResult SendStopSignal();
-  error_handling::ProgramResult ReadKeyBlob(char* buffer, size_t bufferSize);
+
+ private:
+  error_handling::ProgramResult SendKeyHandle(ULONG_PTR key_handle);
+  error_handling::ProgramResult ReadBlobSize(DWORD* blob_size);
+  error_handling::ProgramResult ReadPlainBlob(BYTE* buffer, DWORD buffer_size);
 };
 
 } // namespace process_injection

@@ -1,6 +1,7 @@
 #include "interproc_coms.h"
 
 #include <iostream>
+#include <wincrypt.h>
 
 using namespace std;
 using namespace error_handling;
@@ -14,7 +15,7 @@ void ShowGUIMessage(std::string message) {
 
 const char* kPipeName = R"(\\.\pipe\YourPipeName)";
 
-ProgramResult NamedPipeCommunicator::ReadMessage(char* buffer, size_t buffer_size) {
+ProgramResult NamedPipeCommunicator::ReadMessage(BYTE* buffer, size_t buffer_size) {
   
   // Check buffer validity
   if (buffer == nullptr || buffer_size == 0) {
@@ -78,7 +79,7 @@ ProgramResult NamedPipeCommunicator::ReadMessage(char* buffer, size_t buffer_siz
   return func_result;
 }
 
-ProgramResult NamedPipeCommunicator::WriteMessage(char* buffer, size_t buffer_size) {
+ProgramResult NamedPipeCommunicator::WriteMessage(BYTE* buffer, size_t buffer_size) {
 
   // Check buffer validity
   if (buffer == nullptr || buffer_size == 0) {
@@ -138,6 +139,19 @@ ProgramResult NamedPipeCommunicator::WriteMessage(char* buffer, size_t buffer_si
 
   CloseHandle(overlapped.hEvent);
   return func_result;
+}
+
+ProgramResult NamedPipeCommunicator::WriteError(size_t original_message_size, BYTE fill_byte) {
+  BYTE* message = (BYTE*) malloc(original_message_size);
+  if (message == NULL) {
+    return ErrorResult("Could not allocate space for writing the error");
+  }
+
+  FillMemory(message, original_message_size, 0xFF);
+  ProgramResult pr = WriteMessage(message, original_message_size);
+
+  free(message);
+  return pr;
 }
 
 // SERVER
@@ -215,9 +229,9 @@ ProgramResult NamedPipeServer::ServerLoop() {
 
     switch(cmd.command) {
       case SEND_KEY_CMD:
-        printf("Received key command\n");
+        printf("Received key command %08X\n", cmd.first_arg);
         // MessageBoxA(NULL, "Received key command", "Yes, injected!", MB_OK);
-        // SendKeyBlob(reinterpret_cast<ULONG_PTR>(cmd.first_arg));
+        SendKey(static_cast<ULONG_PTR>(cmd.first_arg));
         break;
       case END_SERVER_CMD:
         // MessageBoxA(NULL, "Received end command", "Yes, injected!", MB_OK);
@@ -243,11 +257,71 @@ ProgramResult NamedPipeServer::CloseServer() {
 ProgramResult NamedPipeServer::ReadCommand(CommandMessage* cmd) {
 
   ProgramResult func_result = OkResult("Key handle successfully read");
-  ProgramResult pr = ReadMessage(reinterpret_cast<char*>(cmd), sizeof(CommandMessage));
+  ProgramResult pr = ReadMessage(reinterpret_cast<BYTE*>(cmd), sizeof(CommandMessage));
 
   if (pr.IsErr()) func_result = pr;
   return func_result;
 }
+
+ProgramResult NamedPipeServer::SendKey(ULONG_PTR key_handle) {
+
+  ProgramResult func_result = OkResult("The key was successfully sent");
+
+  // Get the key size
+  DWORD blob_size = NULL;
+  BOOL success = CryptExportKey(
+    key_handle, NULL,
+    PLAINTEXTKEYBLOB, 0,
+    NULL, &blob_size
+  );
+
+  if (success) {
+    // Send key size
+    ProgramResult res = WriteMessage(reinterpret_cast<BYTE*>(&blob_size), sizeof(DWORD));
+
+    if (res.IsOk()) {
+      BYTE* buffer = (BYTE*) calloc(sizeof(BYTE), blob_size);
+
+      if (buffer != NULL) {
+        DWORD bytes_written = blob_size;
+        success = CryptExportKey(
+          key_handle, NULL,
+          PLAINTEXTKEYBLOB, 0,
+          buffer, &bytes_written
+        );
+
+        if (success) {
+          // send raw key blob
+          res = WriteMessage(buffer, bytes_written);
+          printf("\n KEY DATA:\n");
+          for (unsigned int i = 0; i < bytes_written; i++) {
+            printf("%02X ", buffer[i]);
+          } printf("\n");
+
+          if (res.IsErr()) {
+            func_result = res; // propagate error 
+          }
+        } else {
+          WriteError(blob_size, 0xFF);
+          func_result = ErrorResult("Could not copy key data [CryptExportKey]: " + GetLastErrorAsString());
+        }
+
+        free(buffer);
+      } else {
+        func_result = ErrorResult("Could not allocate memory for copying the key data");
+      }
+    } else {
+      func_result = res;
+    }
+  } else {
+    // If operation failed, signal the error 
+      // (otherwise it will ocurr a timeout in the other end)
+    WriteError(sizeof(DWORD), 0x0);
+    func_result = ErrorResult("Error obtaining key size [CryptExportKey]: " + GetLastErrorAsString());
+  }
+  return func_result;
+}
+
 
 // CLIENT
 ProgramResult NamedPipeClient::ConnectToPipe() {
@@ -304,8 +378,93 @@ ProgramResult NamedPipeClient::SendKeyHandle(ULONG_PTR key_handle) {
   cmd.command = SEND_KEY_CMD;
   cmd.first_arg = (WPARAM) key_handle;
 
-  ProgramResult pr = WriteMessage(reinterpret_cast<char*>(&cmd), sizeof(CommandMessage));
+  ProgramResult pr = WriteMessage(reinterpret_cast<BYTE*>(&cmd), sizeof(CommandMessage));
   if (pr.IsErr()) func_result = pr;
+  return func_result;
+}
+
+ProgramResult NamedPipeClient::ReadBlobSize(DWORD* blob_size) {
+  
+  ProgramResult func_result = OkResult("Blob size read from remote");
+  DWORD size;
+  ProgramResult res = ReadMessage(reinterpret_cast<BYTE*>(&size), sizeof(DWORD));
+
+  if (res.IsErr()) {
+    size = 0;
+    func_result = res;
+  }
+
+  *blob_size = size;
+  return func_result;
+}
+
+ProgramResult NamedPipeClient::ReadPlainBlob(BYTE* buffer, DWORD buffer_size) {
+
+  ProgramResult func_result = OkResult("Blob read from remote");
+  ProgramResult res = ReadMessage(buffer, static_cast<size_t>(buffer_size));
+
+  if (res.IsErr()) {
+    func_result = res;
+  }
+
+  return func_result;
+}
+
+/** 
+ * A function to retrieve a key blob from the remote server.
+ * The data in the output buffer of this function is meant to be used in CryptImportKey.
+ * 
+ * @param key_handle The handle to a key in the process holding the server
+ * @param raw_key_blob The byte array where the data will be held. The allocation is performed by this function
+ * @param raw_structure_size The size of the buffer
+ */
+ProgramResult NamedPipeClient::GetKey(ULONG_PTR key_handle, BYTE** raw_key_blob, DWORD* raw_structure_size) {
+  *raw_key_blob = nullptr;
+  *raw_structure_size = 0;
+
+  ProgramResult func_result = OkResult("Key retrieved");
+
+  printf("Sending key handle\n");
+  ProgramResult result = SendKeyHandle(key_handle);
+
+  if (result.IsOk()) {
+    DWORD key_size;
+    result = ReadBlobSize(&key_size);
+
+    if (result.IsOk()) {
+      if (key_size > 0) {
+        *raw_key_blob = (BYTE*) calloc(sizeof(BYTE), static_cast<size_t>(key_size));
+
+        if (*raw_key_blob != NULL) {
+          result = ReadPlainBlob(*raw_key_blob, key_size);
+
+          if (result.IsOk()) {
+            // Write to output variables
+            *raw_structure_size = key_size;
+
+          } else {
+            // free the region we allocated
+            free(*raw_key_blob);
+            *raw_key_blob = nullptr;
+            func_result = ErrorResult("Failed to read remote key");
+          }
+        } else {
+          printf("Failed to allocate space for the key");
+          func_result = ErrorResult("Failed to allocate space for the key");
+        }
+      } else {
+        printf("Remote error: could not copy key data");
+        func_result = ErrorResult("Remote error: could not copy key data");
+      }
+    } else {
+      printf("Failed to read remote key size\n");
+      func_result = ErrorResult("Failed to read remote key size");
+    }
+  } else {
+    printf("Failed to send key handle\n");
+    func_result = ErrorResult("Failed to send key handle");
+  }
+
   return func_result;
 }
 
@@ -316,7 +475,7 @@ ProgramResult NamedPipeClient::SendStopSignal() {
   cmd.command = END_SERVER_CMD;
   cmd.first_arg = 0;
 
-  ProgramResult pr = WriteMessage(reinterpret_cast<char*>(&cmd), sizeof(CommandMessage));
+  ProgramResult pr = WriteMessage(reinterpret_cast<BYTE*>(&cmd), sizeof(CommandMessage));
   if (pr.IsErr()) func_result = pr;
   return func_result;
 }

@@ -5,8 +5,27 @@
 using namespace error_handling;
 using namespace process_injection;
 
+HCRYPTKEY hKey;         // Session key handle
+void GenerateKey() {
+  HCRYPTPROV hProv;       // CSP handle
+
+  if (CryptAcquireContext(
+    &hProv, NULL, NULL,
+    PROV_RSA_AES, 0)) {
+    
+    if(CryptGenKey(     
+    hProv, CALG_AES_128,      
+    CRYPT_EXPORTABLE,
+    &hKey)) {
+      printf("HCRYPTKEY: %p\n", (void*) hKey);
+
+    }
+  }
+}
+
 int main() {
-  DWORD timeout_millis = 5000;
+  DWORD timeout_millis = 20000;
+  GenerateKey();
 
   NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
   printf("Creating server\n");

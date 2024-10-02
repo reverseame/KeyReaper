@@ -18,16 +18,16 @@ DWORD timeout_millis = 20000;
 
 extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
   NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
-  ShowGUIMessage("Creating server");
+  // ShowGUIMessage("Creating server");
   server.CreateServer();
-  ShowGUIMessage("Waiting for connection");
+  // ShowGUIMessage("Waiting for connection");
   error_handling::ProgramResult pr = server.WaitForConnection();
-  ShowGUIMessage(pr.GetResultInformation());
+  // ShowGUIMessage(pr.GetResultInformation());
   if (pr.IsOk()) {
-    ShowGUIMessage("Entering server loop");
+    // ShowGUIMessage("Entering server loop");
     server.ServerLoop();
-  } else ShowGUIMessage("Did not enter server loop due to previous error");
-  ShowGUIMessage("Closing server");
+  } // else ShowGUIMessage("Did not enter server loop due to previous error");
+  // ShowGUIMessage("Closing server");
   server.CloseServer();
 }
 
