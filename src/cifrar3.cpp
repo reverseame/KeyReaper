@@ -66,14 +66,6 @@ int PrintHeapInformation() {
   return func_result;
 }
 
-int GetHeaps() {
-  HANDLE proc_heap = GetProcessHeap();
-  if (proc_heap == NULL) return -1;
-
-  //HeapQueryInformation(proc_heap, );
-  return 0;
-}
-
 vector<string> retrieveTextFiles(const wstring& folderPath) {
     vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
@@ -107,6 +99,9 @@ int main(int argc, char* argv[]) {
     //BOOL isDecrypt = FALSE;
     //wstring decrypt = argv[2];
     printf("Encrypt mode\n");
+    printf("Self PID: %u\n", GetCurrentProcessId());
+    printf("Press a key to start...");
+    getchar();
 
     const size_t alt_len = strlen(alternate_key);
     const size_t len = lstrlenW(key_str);
