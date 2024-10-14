@@ -11,7 +11,7 @@
 #include <codecvt>
 #pragma comment(lib, "advapi32.lib") // crypto api
 
-#include "cryptoapi.h"
+#include "../cryptoapi.h"
 using namespace key_scanner;
 
 using namespace std;
