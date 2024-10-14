@@ -316,6 +316,8 @@ ProgramResult NamedPipeServer::SendKey(ULONG_PTR key_handle) {
   } else {
     // If operation failed, signal the error 
       // (otherwise it will ocurr a timeout in the other end)
+    
+    // REVIEW: something is not working
     WriteError(sizeof(DWORD), 0x0);
     func_result = ErrorResult("Error obtaining key size [CryptExportKey]: " + GetLastErrorAsString());
   }
