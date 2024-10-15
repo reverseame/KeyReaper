@@ -162,13 +162,14 @@ bool CipherFiles() {
   SIZE_T file_count = 1;
   for (const string& filename : text_files) {
     printf(" Progress: %u/%u\t\t\r", file_count++, text_files.size());
-    wstring wFilename(filename.begin(), filename.end()); // Convertir el nombre de archivo a wstring
-    wFilename = path + wFilename; // Pasar el path
-    const wchar_t* input = wFilename.c_str(); // Variable const wchar_t* para el nombre de archivo de entrada
-    wstring wOutputFilename = wFilename; // Crear una copia de wFilename para el nombre de archivo de salida
-    wOutputFilename += L".enc"; // Agregar la extensión ".dec" al nombre de archivo de salida
 
-    const wchar_t* output = wOutputFilename.c_str(); // Variable const wchar_t* para el nombre de archivo de salida
+    wstring wide_input_filename(filename.begin(), filename.end()); // Convertir el nombre de archivo a wstring
+    wide_input_filename = path + wide_input_filename; // Pasar el path
+    const wchar_t* input = wide_input_filename.c_str(); // Variable const wchar_t* para el nombre de archivo de entrada
+    wstring wide_output_filename = wide_input_filename; // Crear una copia de wide_input_filename para el nombre de archivo de salida
+    wide_output_filename += L".enc"; // Agregar la extensión ".dec" al nombre de archivo de salida
+
+    const wchar_t* output = wide_output_filename.c_str(); // Variable const wchar_t* para el nombre de archivo de salida
     
     // Input file handle
     HANDLE input_file_handle = CreateFileW(input, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
