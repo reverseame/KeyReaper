@@ -36,6 +36,14 @@ add_executable(${EXECUTABLE_NAME}
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 
+# --- Cryptography: Next Generation Dummy Ransomware -----
+set(EXECUTABLE_NAME "next_gen_ransy")
+add_executable(${EXECUTABLE_NAME}
+    ${SOURCE_BASE_DIR}/custom-ransomware/basic-CNG-ransomware.cc
+)
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+
 # --- Injected DLL -----------------
 set(LIBRARY_NAME "evil")
 add_library(${LIBRARY_NAME} SHARED
