@@ -86,6 +86,45 @@ vector<string> retrieveEncodedFiles(const string& folderPath) {
     return fileNames;
 }
 
+void PrintKeyData(HCRYPTKEY hKey) {
+    uintptr_t* ptr = (uintptr_t*) hKey;
+    cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) hKey;
+
+    printf("HCRYPTKEY:      %p -> %p\n", hCryptKey, ptr);
+    printf("CPGenKey:       %p   [%p]\n", hCryptKey->CPGenKey, &(hCryptKey->CPGenKey));
+    printf("CPDeriveKey:    %p   [%p]\n", hCryptKey->CPDeriveKey, &(hCryptKey->CPDeriveKey));
+    printf("CPDestroyKey:   %p   [%p]\n", hCryptKey->CPDestroyKey, &(hCryptKey->CPDestroyKey));
+    printf("CPSetKeyParam:  %p   [%p]\n", hCryptKey->CPSetKeyParam, &(hCryptKey->CPSetKeyParam));
+    printf("CPGetKeyParam:  %p   [%p]\n", hCryptKey->CPGetKeyParam, &(hCryptKey->CPGetKeyParam));
+    printf("CPExportKey:    %p   [%p]\n", hCryptKey->CPExportKey, &(hCryptKey->CPExportKey));
+    printf("CPImportKey:    %p   [%p]\n", hCryptKey->CPImportKey, &(hCryptKey->CPImportKey));
+    printf("CPEncrypt:      %p   [%p]\n", hCryptKey->CPEncrypt, &(hCryptKey->CPEncrypt));
+    printf("CPDecrypt:      %p   [%p]\n", hCryptKey->CPDecrypt, &(hCryptKey->CPDecrypt));
+    printf("CPDuplicateKey: %p   [%p]\n", hCryptKey->CPDuplicateKey, &(hCryptKey->CPDuplicateKey));
+    printf("hCryptProv:     %p   [%p]\n", (void*) hCryptKey->hCryptProv, &(hCryptKey->hCryptProv));
+    printf("magic:          %p   [%p]\n", hCryptKey->magic, &(hCryptKey->magic));
+
+    UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
+    magic_xor = magic_xor ^ MAGIC_CONSTANT;
+    cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
+    printf("magic xor:      %p -> %p\n", ms, ms->key_data);
+    cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) ms->key_data;
+
+    printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_data);
+    printf("Unknown ptr:    %p\n", key_data->unknown);
+    printf("Algorithm:      %08X\n", key_data->alg);
+    printf("Flags:          %08X\n", key_data->flags);
+    printf("Key size:       %08X\n", key_data->key_size);
+    printf("Key ptr:        %p\n", key_data->key_bytes);
+
+    char* key_bytes = (char*) key_data->key_bytes;
+    printf("\nKEY [@ %p]\n", key_bytes);
+    for (int i = 0; i < 16; i++) {
+        
+        printf("%02x ",  (*(key_bytes+i)) & 255);
+    }; printf("\n");
+}
+
 //params: <path> <is decrypt mode> <key>
 int main(int argc, char* argv[]) {
 
@@ -166,45 +205,10 @@ int main(int argc, char* argv[]) {
         return dwStatus;
     }
 
-    // PRINTING ALL STRUCTURE DATA (pointers)
-    uintptr_t* ptr = (uintptr_t*) hKey;
-    cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) hKey;
-
-    printf("HCRYPTKEY:      %p -> %p\n", hCryptKey, ptr);
-    printf("CPGenKey:       %p   [%p]\n", hCryptKey->CPGenKey, &(hCryptKey->CPGenKey));
-    printf("CPDeriveKey:    %p   [%p]\n", hCryptKey->CPDeriveKey, &(hCryptKey->CPDeriveKey));
-    printf("CPDestroyKey:   %p   [%p]\n", hCryptKey->CPDestroyKey, &(hCryptKey->CPDestroyKey));
-    printf("CPSetKeyParam:  %p   [%p]\n", hCryptKey->CPSetKeyParam, &(hCryptKey->CPSetKeyParam));
-    printf("CPGetKeyParam:  %p   [%p]\n", hCryptKey->CPGetKeyParam, &(hCryptKey->CPGetKeyParam));
-    printf("CPExportKey:    %p   [%p]\n", hCryptKey->CPExportKey, &(hCryptKey->CPExportKey));
-    printf("CPImportKey:    %p   [%p]\n", hCryptKey->CPImportKey, &(hCryptKey->CPImportKey));
-    printf("CPEncrypt:      %p   [%p]\n", hCryptKey->CPEncrypt, &(hCryptKey->CPEncrypt));
-    printf("CPDecrypt:      %p   [%p]\n", hCryptKey->CPDecrypt, &(hCryptKey->CPDecrypt));
-    printf("CPDuplicateKey: %p   [%p]\n", hCryptKey->CPDuplicateKey, &(hCryptKey->CPDuplicateKey));
-    printf("hCryptProv:     %p   [%p]\n", (void*) hCryptKey->hCryptProv, &(hCryptKey->hCryptProv));
-    printf("magic:          %p   [%p]\n", hCryptKey->magic, &(hCryptKey->magic));
-
-    UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
-    magic_xor = magic_xor ^ MAGIC_CONSTANT;
-    cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
-    printf("magic xor:      %p -> %p\n", ms, ms->key_data);
-    cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) ms->key_data;
-
-    printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_data);
-    printf("Unknown ptr:    %p\n", key_data->unknown);
-    printf("Algorithm:      %08X\n", key_data->alg);
-    printf("Flags:          %08X\n", key_data->flags);
-    printf("Key size:       %08X\n", key_data->key_size);
-    printf("Key ptr:        %p\n", key_data->key_bytes);
-
-    char* key_bytes = (char*) key_data->key_bytes;
-    printf("\nKEY [@ %p]\n", key_bytes);
-    for (int i = 0; i < 16; i++) {
-        
-        printf("%02x ",  (*(key_bytes+i)) & 255);
-    }; printf("\n");
-    
     printf("[+] CryptDeriveKey Success\n");
+    
+    // PRINTING ALL STRUCTURE DATA (pointers)
+    PrintKeyData(hKey);
 
     PrintHeapInformation();
     printf("ENCRYPTING...\n");

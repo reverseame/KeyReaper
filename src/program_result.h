@@ -48,6 +48,6 @@ class OkResult : public ProgramResult {
 // https://stackoverflow.com/questions/1387064/how-to-get-the-error-message-from-the-error-code-returned-by-getlasterror
 std::string GetLastErrorAsString();
 
-}
+} // namespace error_handling
 
 #endif
