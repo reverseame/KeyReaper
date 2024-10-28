@@ -18,7 +18,7 @@ namespace fs = filesystem;
 // CONFIG
 wstring path = L"C:\\TEST\\";
 const char* key_string = "password";
-#define AES_KEY_SIZE 16
+#define AES_KEY_SIZE 16  // bytes
 
 #define IN_CHUNK_SIZE (AES_KEY_SIZE * 10)
 
@@ -137,7 +137,7 @@ bool SetupCryptography() {
     NULL, // null when key is derived (in our case, calculated through a hash)
     0, // size of the object set to auto
     hash_ptr, // key material
-    AES_KEY_SIZE, // size of previous
+    AES_KEY_SIZE, // size of key
     0 // no flags
   );
   if (!NT_SUCCESS(result)) { printf("Failed to generate a symmetric key from the hash\n"); return false; }

@@ -66,6 +66,50 @@ int PrintHeapInformation() {
   return func_result;
 }
 
+#include "../program_result.h"
+void TryExportKey(HCRYPTKEY key_handle) {
+
+    // Get the key size
+    DWORD blob_size = NULL;
+    BOOL success = CryptExportKey(
+        key_handle, NULL,
+        PLAINTEXTKEYBLOB, 0,
+        NULL, &blob_size
+    );
+
+    if (!success) {
+        cout << "[x] Could not export the key: " << error_handling::GetLastErrorAsString() << endl;
+        printf("CRYPT_EXPORTABLE: 0x%x\n", CRYPT_EXPORTABLE);
+        return;
+    } else {
+        printf("Size recovered\n");
+    }
+
+    BYTE* buffer = (BYTE*) calloc(sizeof(BYTE), blob_size);
+
+    if (buffer != NULL) {
+        DWORD bytes_written = blob_size;
+        success = CryptExportKey(
+            key_handle, NULL,
+            PLAINTEXTKEYBLOB, 0,
+            buffer, &bytes_written
+        );
+
+        if (!success) {
+            cout << "[x] Could not export the key: " << error_handling::GetLastErrorAsString() << endl;
+            return;
+        } else {
+            printf("Key exported\n");
+
+            printf(" KEY DATA:\n");
+            for (unsigned int i = 0; i < bytes_written; i++) {
+                printf("%02X ", buffer[i]);
+            } printf("\n");
+        }
+        free(buffer);
+    }
+}
+
 vector<string> retrieveTextFiles(const wstring& folderPath) {
     vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
@@ -209,6 +253,8 @@ int main(int argc, char* argv[]) {
     
     // PRINTING ALL STRUCTURE DATA (pointers)
     PrintKeyData(hKey);
+
+    TryExportKey(hKey);
 
     PrintHeapInformation();
     printf("ENCRYPTING...\n");

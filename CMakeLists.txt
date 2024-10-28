@@ -31,6 +31,7 @@ set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NA
 
 set(EXECUTABLE_NAME "ransy")
 add_executable(${EXECUTABLE_NAME}
+    ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
 )
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
