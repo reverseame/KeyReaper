@@ -3,6 +3,7 @@
 #include <iostream>
 #include <wincrypt.h>
 #include <string>
+#include <format>
 
 #pragma comment(lib, "Crypt32.lib") // crypto api
 
@@ -79,6 +80,17 @@ vector<unsigned char> Key::GetKey() const {
     return vector<unsigned char>();
   
   return *key_; // return a copy
+}
+
+string Key::GetKeyAsString() const {
+  string key_string = string();
+
+  for (BYTE byte : GetKey()) {
+    // printf("%2X\n", byte);
+    key_string.append(format("{:02X}", byte));
+  }
+
+  return key_string;
 }
 
 bool Key::operator==(const Key &other) const {

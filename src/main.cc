@@ -17,6 +17,21 @@ using namespace key_scanner;
 using namespace error_handling;
 using namespace std;
 
+#include <nlohmann/json.hpp>
+#include <fstream>
+void ExportKeysToJSON(unordered_set<Key, Key::KeyHashFunction> keys, string output_json) {
+  
+
+  cout << "[i] Exporting keys to " << output_json << ".json" << endl;
+  nlohmann::json json_data;
+  for (auto &key : keys) {
+    json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", to_string(key.GetSize())} };
+  }
+
+  ofstream file(output_json + ".json");
+  file << json_data.dump(2);  // Pretty print
+  file.close();
+}
 
 #include <strsafe.h> // PrintLastError
 
@@ -107,6 +122,8 @@ int main(int argc, char *argv[]) {
 
   printf("\n=======================\n");
   printf("All found keys: \n");
+
+  ExportKeysToJSON(keys, "keys");
 
   unsigned int i = 1;
   for (auto &key : keys) {

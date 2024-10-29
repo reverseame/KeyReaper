@@ -50,6 +50,7 @@ class Key {
   std::string GetAlgorithm() const;
   std::string GetCipherType() const;
   std::vector<unsigned char> GetKey() const;
+  std::string GetKeyAsString() const;
 
   bool operator==(const Key& other) const;
 

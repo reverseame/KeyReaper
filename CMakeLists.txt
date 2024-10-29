@@ -4,7 +4,7 @@ set(CMAKE_SYSTEM_NAME Windows)
 project(Craperv2)
 
 set(MSVC True)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SOURCE_BASE_DIR "${CMAKE_SOURCE_DIR}/src")
@@ -18,6 +18,15 @@ else()
     set(ARCHITECTURE_APPEND "x64")
 endif()
 
+# JSON library
+include(FetchContent)
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(json)
+
 set(EXECUTABLE_NAME "craper")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
@@ -27,6 +36,10 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${SOURCE_BASE_DIR}/main.cc
 )
+
+# Link nlohmann/json to your executable
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json)
+# Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "ransy")
