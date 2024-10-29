@@ -1,0 +1,4 @@
+[submodule "src/decryptors/AvaddonDecryptor"]
+	path = src/decryptors/AvaddonDecryptor
+	url = https://github.com/leonav-unizar/AvaddonDecryptor.git
+	branch = custom-decryptor
