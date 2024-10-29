@@ -18,8 +18,17 @@ else()
     set(ARCHITECTURE_APPEND "x64")
 endif()
 
-# JSON library
+# 3rd parties
 include(FetchContent)
+
+# Interrogate
+FetchContent_Declare(
+    interrogate
+    URL https://sourceforge.net/projects/interrogate/files/interrogate/0.0.4/interrogate-0.0.4-source.tar.gz/download
+)
+FetchContent_MakeAvailable(interrogate)
+
+# JSON library
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
