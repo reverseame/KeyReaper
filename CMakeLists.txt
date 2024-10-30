@@ -25,6 +25,7 @@ include(FetchContent)
 FetchContent_Declare(
     interrogate
     URL https://sourceforge.net/projects/interrogate/files/interrogate/0.0.4/interrogate-0.0.4-source.tar.gz/download
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(interrogate)
 
