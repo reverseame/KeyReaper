@@ -20,12 +20,10 @@ using namespace std;
 #include <nlohmann/json.hpp>
 #include <fstream>
 void ExportKeysToJSON(unordered_set<Key, Key::KeyHashFunction> keys, string output_json) {
-  
-
   cout << "[i] Exporting keys to " << output_json << ".json" << endl;
   nlohmann::json json_data;
   for (auto &key : keys) {
-    json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", to_string(key.GetSize())} };
+    json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", key.GetSize()} };
   }
 
   ofstream file(output_json + ".json");

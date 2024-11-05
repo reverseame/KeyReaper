@@ -37,6 +37,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
+# Argument parsing
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+    GIT_TAG v3.1
+)
+FetchContent_MakeAvailable(argparse)
+
+### Binaries #############
+
 set(EXECUTABLE_NAME "craper")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
@@ -59,6 +69,13 @@ add_executable(${EXECUTABLE_NAME}
 )
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
+set(EXECUTABLE_NAME "ransy_decryptor")
+add_executable(${EXECUTABLE_NAME}
+    ${SOURCE_BASE_DIR}/program_result.cc
+    ${SOURCE_BASE_DIR}/decryptors/PoCDcryptor/poc-decryptor.cc
+)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json argparse)
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 # --- Cryptography: Next Generation Dummy Ransomware -----
 set(EXECUTABLE_NAME "next_gen_ransy")

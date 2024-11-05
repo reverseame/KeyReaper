@@ -6,9 +6,54 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+#include <windows.h>
+#include <wincrypt.h>
 #include "cryptoapi.h"
 
 namespace key_scanner {
+
+// FROM MS-LEARN
+// https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/jj650836(v=vs.85)
+#define PLAINTEXTKEYBLOB_MAX_SIZE_BYTES 16
+struct CRAPI_PLAINTEXTKEYBLOB {
+  CRAPI_PLAINTEXTKEYBLOB(DWORD key_size, ALG_ID algo, const BYTE* key_bytes) {
+        hdr.bType = PLAINTEXTKEYBLOB;
+        hdr.bVersion = CUR_BLOB_VERSION;
+        hdr.reserved = 0;
+        hdr.aiKeyAlg = algo;
+
+        ZeroMemory(rgbKeyData, PLAINTEXTKEYBLOB_MAX_SIZE_BYTES); // bytes
+        if (key_size > PLAINTEXTKEYBLOB_MAX_SIZE_BYTES) {
+          printf(" [x] Key size too big. Copying until maximum (max allowed: %u)\n", PLAINTEXTKEYBLOB_MAX_SIZE_BYTES);
+          dwKeySize = PLAINTEXTKEYBLOB_MAX_SIZE_BYTES;
+        } else {
+          dwKeySize = key_size;
+        }
+        std::memcpy(rgbKeyData, key_bytes, static_cast<size_t>(dwKeySize));
+
+        for (UINT i = 0; i < dwKeySize; i++) {
+          printf(" %02X", rgbKeyData[i]);
+        } printf("\n");
+      }
+  CRAPI_PLAINTEXTKEYBLOB() : dwKeySize(0) {}
+
+  bool isOk() {
+    if (size() == 0) return false;
+    return true;
+  }
+
+  DWORD size() {
+    return dwKeySize;
+  }
+
+  BYTE* key_bytes() {
+    return rgbKeyData;
+  }
+
+  BLOBHEADER hdr;
+  DWORD dwKeySize;
+  BYTE rgbKeyData[PLAINTEXTKEYBLOB_MAX_SIZE_BYTES];
+};
 
 size_t const kError = 0;
 enum class CipherAlgorithm { kError, kUnknown, kAES, kRSA, kRC4, kDES, kSalsa20 };
