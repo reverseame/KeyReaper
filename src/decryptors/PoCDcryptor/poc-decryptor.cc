@@ -27,11 +27,11 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 std::vector<BYTE> LoadFileData(const std::string& filename) {
-    std::ifstream file(filename, std::ios::binary);
-    return { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+  std::ifstream file(filename, std::ios::binary);
+  return { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
 }
 
-CRAPI_PLAINTEXTKEYBLOB ImportKeyFromJSON(string json_file) {
+CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
   CRAPI_PLAINTEXTKEYBLOB key_blob_bytes = CRAPI_PLAINTEXTKEYBLOB();
   vector<BYTE> key_bytes = vector<BYTE>();
 
@@ -54,11 +54,13 @@ CRAPI_PLAINTEXTKEYBLOB ImportKeyFromJSON(string json_file) {
           if( data["algorithm"] == "AES" ) {
             key_bytes.reserve(size / 2);
 
+            printf(" [i] Recovered key: ");
             for (size_t position = 0; position < size; position+=2) {
               std::string byteString = key.substr(position, 2);
               BYTE byte = static_cast<BYTE>(stoi(byteString, nullptr, 16));
               key_bytes.push_back(byte);
-            }
+              printf(" %02X", byte);
+            } printf("\n");
 
           } else {
             printf(" [x] Key is not AES");
@@ -89,19 +91,18 @@ CRAPI_PLAINTEXTKEYBLOB ImportKeyFromJSON(string json_file) {
   return key_blob_bytes;
 }
 
+BOOL ImportCryptoKeyToProvider(string keys_json, HCRYPTPROV hProv, HCRYPTKEY *hKey) {
+  BOOL status = false;
+  
+  CRAPI_PLAINTEXTKEYBLOB key = GetKeyFromJSON(keys_json);
+  if (key.isOk()) {
+    status = CryptImportKey(hProv, (BYTE*) &key, key.size(), 0, 0, hKey);
+  } else printf(" [x] No key could be retieved");
+
+	return status;
+}
+
 int DecryptFiles(string keys_json) {
-  CRAPI_PLAINTEXTKEYBLOB key = ImportKeyFromJSON(keys_json);
-  if (!key.isOk()) {
-    printf(" [x] No key could be retieved");
-    return 1;
-
-  } else {
-    // Print key
-    for (DWORD i = 0; i < key.size(); i++) {
-      printf(" %02X", key.key_bytes()[i]);
-    } printf("\n");
-  }
-
   HCRYPTPROV aes_provider = NULL;
   HCRYPTKEY key_handle = NULL;
 
@@ -113,27 +114,7 @@ int DecryptFiles(string keys_json) {
     return 2;
   }
 
-  struct {
-      BLOBHEADER hdr;
-      DWORD dwKeySize;
-      BYTE keyData[16]; // Adjust size if using a key larger than 128 bits (16 bytes)
-    } testKeyBlob;
-
-    testKeyBlob.hdr.bType = PLAINTEXTKEYBLOB;
-    testKeyBlob.hdr.bVersion = CUR_BLOB_VERSION;
-    testKeyBlob.hdr.reserved = 0;
-    testKeyBlob.hdr.aiKeyAlg = CALG_AES_128;
-    testKeyBlob.dwKeySize = 16;
-    memcpy(testKeyBlob.keyData, key.key_bytes(), 16);
-
-    for (DWORD i = 0; i < key.size(); i++) {
-      printf(" %02X", key.key_bytes()[i]);
-    } printf("\n");
-
-  cout << "Key size: " << key.size() << endl;
-  DWORD result = CryptImportKey(aes_provider, (BYTE*) &testKeyBlob, key.size(), 0, 0, &key_handle);
-  printf("Import result: %u\n", result);
-  if (!result) {
+  if (!ImportCryptoKeyToProvider(keys_json, aes_provider, &key_handle)) {
     cerr << "Error: CryptImportKey failed - " << GetLastError() << " (" << GetLastErrorAsString() << ")" << endl;
     CryptReleaseContext(aes_provider, 0);
     return 3;

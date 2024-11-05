@@ -29,11 +29,8 @@ struct CRAPI_PLAINTEXTKEYBLOB {
         } else {
           dwKeySize = key_size;
         }
+        
         std::memcpy(rgbKeyData, key_bytes, static_cast<size_t>(dwKeySize));
-
-        for (UINT i = 0; i < dwKeySize; i++) {
-          printf(" %02X", rgbKeyData[i]);
-        } printf("\n");
       }
   CRAPI_PLAINTEXTKEYBLOB() : dwKeySize(0) {}
 
@@ -43,7 +40,8 @@ struct CRAPI_PLAINTEXTKEYBLOB {
   }
 
   DWORD size() {
-    return dwKeySize;
+    if (dwKeySize == 0) return 0;
+    return dwKeySize + sizeof(BLOBHEADER) + sizeof(DWORD);
   }
 
   BYTE* key_bytes() {
