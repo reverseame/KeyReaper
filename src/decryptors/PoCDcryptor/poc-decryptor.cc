@@ -26,15 +26,11 @@ using namespace key_scanner;
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-std::vector<BYTE> LoadFileData(const std::string& filename) {
-  std::ifstream file(filename, std::ios::binary);
-  return { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
-}
-
 CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
   CRAPI_PLAINTEXTKEYBLOB key_blob_bytes = CRAPI_PLAINTEXTKEYBLOB();
   vector<BYTE> key_bytes = vector<BYTE>();
 
+  cout << " [i] Reading key from file:" << json_file << endl;
   ifstream file(json_file);
   if (file) {
     json json_data;
@@ -54,7 +50,7 @@ CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
           if( data["algorithm"] == "AES" ) {
             key_bytes.reserve(size / 2);
 
-            printf(" [i] Recovered key: ");
+            printf(" [i] Recovered key:");
             for (size_t position = 0; position < size; position+=2) {
               std::string byteString = key.substr(position, 2);
               BYTE byte = static_cast<BYTE>(stoi(byteString, nullptr, 16));
@@ -91,6 +87,37 @@ CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
   return key_blob_bytes;
 }
 
+bool SaveDecryptedDataToFile(const fs::path& encrypted_file_path, const std::vector<BYTE>& decrypted_data) {
+  fs::path output_file_path = encrypted_file_path;  // Same name and path,
+  output_file_path.replace_extension("");           // removing the ".enc" extension
+
+  ofstream decrypted_file(output_file_path, ios::binary);
+  if (!decrypted_file) {
+    cerr << " [x] Failed to create decrypted file: " << output_file_path << '\n';
+    return false;
+  }
+
+  decrypted_file.write(reinterpret_cast<const char*>(decrypted_data.data()), decrypted_data.size());
+  decrypted_file.close();
+
+  std::cout << " [i] Decrypted file saved as: " << output_file_path << '\n';
+  return true;
+}
+
+bool DecryptData(HCRYPTKEY key_handle, vector<BYTE>& encrypted_data) { //, BYTE* iv) {
+  DWORD data_len = static_cast<DWORD>(encrypted_data.size());
+
+  // Decrypt the data
+  if (!CryptDecrypt(key_handle, 0, TRUE, 0, encrypted_data.data(), &data_len)) {
+    cerr << "Error decrypting data: " << GetLastError() << '\n';
+    return false;
+  }
+
+  // Resize the vector to the actual decrypted data length (may have padding removed)
+  encrypted_data.resize(data_len);
+  return true;
+}
+
 BOOL ImportCryptoKeyToProvider(string keys_json, HCRYPTPROV hProv, HCRYPTKEY *hKey) {
   BOOL status = false;
   
@@ -102,7 +129,7 @@ BOOL ImportCryptoKeyToProvider(string keys_json, HCRYPTPROV hProv, HCRYPTKEY *hK
 	return status;
 }
 
-int DecryptFiles(string keys_json) {
+int DecryptFiles(string keys_json, string path) {
   HCRYPTPROV aes_provider = NULL;
   HCRYPTKEY key_handle = NULL;
 
@@ -120,17 +147,49 @@ int DecryptFiles(string keys_json) {
     return 3;
   }
 
-  auto encryptedData = LoadFileData("");
+  // ENUMERATE FILES
+  cout << " [i] Loading files from: " << path << endl << endl;
+  string ext(".enc");
+  for (const auto &p : fs::recursive_directory_iterator(path)) {
+    if (p.path().extension() == ext) {
+      cout << " [i] Decrypting file: " << p.path().string() << '\n';
+
+      ifstream file(p.path(), std::ios::binary);
+      if (!file) {
+        cout << " [x] Failed to open file: " << p.path() << endl;
+        continue;
+      }
+
+      vector<BYTE> encrypted_data((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+      file.close();
+
+      if (DecryptData(key_handle, encrypted_data)) {
+        if (!SaveDecryptedDataToFile(p.path(), encrypted_data)) {
+          cout << " [x] Failed to write unencrypted data to file" << endl;
+        } else {
+          cout << " [i] Deleting encrypted file" << endl;
+          fs::remove(p);
+        }
+      }
+      printf(" ----------\n");
+    }
+  }
 
   return 0;
 }
 
 int main(int argc, char *argv[]) {
-  argparse::ArgumentParser program("program_name");
+  argparse::ArgumentParser program("custom_crapi_decryptor");
 
   program.add_argument("-k", "--keys")
     .default_value("./keys.json")
     .help("JSON file with the keys");
+
+  program.add_argument("-p", "--path")
+    .default_value("C:/TEST/")
+    .help("Path with the files to decrypt");
+
+  // TODO: add an argument for comparing a file with its original, to verify that the key is correct
 
   try {
     program.parse_args(argc, argv);
@@ -141,8 +200,10 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  cout << program.get<string>("--keys") << endl;
-  DecryptFiles(program.get<string>("--keys"));
+  DecryptFiles(
+    program.get<string>("--keys"),
+    program.get<string>("--path")
+  );
 
   return 0;
 
