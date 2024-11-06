@@ -133,4 +133,33 @@ size_t Key::KeyHashFunction::operator()(const Key &key) const {
   return hash;
 }
 
+
+vector<BYTE> CrAPIKeyWrapper::GetParameter(DWORD parameter) {
+  vector<BYTE> data_bytes;
+  DWORD data_size = 0;
+
+  // Get the size of the parameter
+  if (!CryptGetKeyParam(
+    key_handle_,
+    parameter,
+    NULL,
+    &data_size, 0
+  )) {
+    return vector<BYTE>();
+  }
+
+  // Get the parameter itself
+  data_bytes.resize(data_size);
+  if (!CryptGetKeyParam(
+    key_handle_,
+    parameter,
+    data_bytes.data(),
+    &data_size, 0
+  )) {
+    return vector<BYTE>();
+  }
+
+  return data_bytes;
+}
+
 } // namespace key_scanner

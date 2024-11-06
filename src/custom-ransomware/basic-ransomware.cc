@@ -12,6 +12,7 @@
 #pragma comment(lib, "advapi32.lib") // crypto api
 
 #include "../cryptoapi.h"
+#include "../key.h"
 using namespace key_scanner;
 
 using namespace std;
@@ -110,6 +111,25 @@ void TryExportKey(HCRYPTKEY key_handle) {
     }
 }
 
+void PrintKeyParameters(HCRYPTKEY key_handle) {
+    CrAPIAESKeyWrapper key_wrapper = CrAPIAESKeyWrapper(key_handle);
+
+    printf("IV:            ");
+    for (auto byte : key_wrapper.GetIV()) {
+        printf(" %02X", byte);
+    } printf("\n");
+
+    printf("KP_PADDING:    ");
+    for (auto byte : key_wrapper.GetPadding()) {
+        printf(" %02X", byte);
+    } printf("\n");
+
+    printf("KP_MODE:       ");
+    for (auto byte : key_wrapper.GetMode()) {
+        printf(" %02X", byte);
+    } printf("\n");
+}
+
 vector<string> retrieveTextFiles(const wstring& folderPath) {
     vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
@@ -160,6 +180,7 @@ void PrintKeyData(HCRYPTKEY hKey) {
     printf("Flags:          %08X\n", key_data->flags);
     printf("Key size:       %08X\n", key_data->key_size);
     printf("Key ptr:        %p\n", key_data->key_bytes);
+    PrintKeyParameters(hKey);
 
     char* key_bytes = (char*) key_data->key_bytes;
     printf("\nKEY [@ %p]\n", key_bytes);
