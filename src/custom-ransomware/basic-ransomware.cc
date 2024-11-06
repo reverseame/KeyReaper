@@ -11,8 +11,8 @@
 #include <codecvt>
 #pragma comment(lib, "advapi32.lib") // crypto api
 
-#include "../cryptoapi.h"
-#include "../key.h"
+#include "cryptoapi.h"
+#include "key.h"
 using namespace key_scanner;
 
 using namespace std;
@@ -67,7 +67,7 @@ int PrintHeapInformation() {
   return func_result;
 }
 
-#include "../program_result.h"
+#include "program_result.h"
 void TryExportKey(HCRYPTKEY key_handle) {
 
     // Get the key size

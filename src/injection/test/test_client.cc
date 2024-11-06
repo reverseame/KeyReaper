@@ -1,5 +1,5 @@
-#include "../interproc_coms.h"
-#include "../../program_result.h"
+#include "injection/interproc_coms.h"
+#include "program_result.h"
 #include <stdio.h>
 #include <string>
 #include <iostream>

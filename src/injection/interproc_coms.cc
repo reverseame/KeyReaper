@@ -1,4 +1,4 @@
-#include "interproc_coms.h"
+#include "injection/interproc_coms.h"
 
 #include <iostream>
 #include <wincrypt.h>

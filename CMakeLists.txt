@@ -18,6 +18,10 @@ else()
     set(ARCHITECTURE_APPEND "x64")
 endif()
 
+## Ease for includes
+add_library(common_includes INTERFACE)
+target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include)
+
 # 3rd parties
 include(FetchContent)
 
@@ -58,7 +62,7 @@ add_executable(${EXECUTABLE_NAME}
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json common_includes)
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
@@ -68,6 +72,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
 )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "ransy_decryptor")
@@ -76,7 +81,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/decryptors/PoCDcryptor/poc-decryptor.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json argparse)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json argparse common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 # --- Cryptography: Next Generation Dummy Ransomware -----
@@ -84,6 +89,7 @@ set(EXECUTABLE_NAME "next_gen_ransy")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-CNG-ransomware.cc
 )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 
@@ -94,7 +100,7 @@ add_library(${LIBRARY_NAME} SHARED
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/cryptoapi_key_exporter.cc
 )
-
+target_link_libraries(${LIBRARY_NAME} PRIVATE common_includes)
 set_target_properties(${LIBRARY_NAME} PROPERTIES OUTPUT_NAME "${LIBRARY_NAME}_${ARCHITECTURE_APPEND}")
 
 # --- Test Injector ----------------
@@ -104,6 +110,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/injector.cc
 )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "test_client")
@@ -112,6 +119,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/test/test_client.cc
 )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "test_server")
@@ -120,4 +128,5 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/test/test_server.cc
 )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")

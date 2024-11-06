@@ -7,11 +7,11 @@ https://cocomelonc.github.io/tutorial/2021/09/20/malware-injection-2.html
 #include <windows.h>
 #pragma comment (lib, "user32.lib")
 
-#include "../program_result.h"
+#include "program_result.h"
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
 
-#include "interproc_coms.h"
+#include "injection/interproc_coms.h"
 using namespace process_injection;
 
 DWORD timeout_millis = 20000;

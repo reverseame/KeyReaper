@@ -1,8 +1,8 @@
 #include <windows.h>
 #include <string>
 
-#include "../program_result.h"
-#include "interproc_coms.h"
+#include "program_result.h"
+#include "injection/interproc_coms.h"
 
 char evilDLL[] = "C:\\evil_x86.dll";
 unsigned int evilLen = sizeof(evilDLL) + 1;

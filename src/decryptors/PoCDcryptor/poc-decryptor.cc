@@ -17,8 +17,8 @@
 
 #pragma comment(lib, "advapi32.lib") // crypto api
 
-#include "../../program_result.h"
-#include "../../key.h"
+#include "program_result.h"
+#include "key.h"
 
 using namespace std;
 using namespace error_handling;
