@@ -24,7 +24,7 @@ void ScannerBuilder::AddRoundKeyScan() {
   do_round_key_scan_ = true;
 }
 
-unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
+ScannerVector ScannerBuilder::GetScanners() {
 
   unique_ptr<vector<unique_ptr<ScanStrategy>>> strategies = make_unique<vector<unique_ptr<ScanStrategy>>>();
 
@@ -38,7 +38,7 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
     strategies->push_back(make_unique<CryptoAPIScan>(s));
   }
 
-  return strategies;
+  return ScannerVector(move(strategies));
 }
 
 HMODULE CryptoAPIScan::cryptoapi_base_address = NULL;
@@ -170,6 +170,10 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
 
 std::unordered_set<Key, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
   return std::unordered_set<Key, Key::KeyHashFunction>();
+}
+
+ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> strategies) {
+  scanners_ = std::move(strategies);
 }
 
 } // namespace key_scanner
