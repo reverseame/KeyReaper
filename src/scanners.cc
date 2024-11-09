@@ -17,15 +17,17 @@ using HeapInformation = process_manipulation::HeapInformation;
 namespace key_scanner {
 
 void ScannerBuilder::AddCryptoAPIScan() {
-  do_structure_scan_ = true;
+  printf("Activated crapi structure scan\n");
+  do_crapi_structure_scan_ = true;
 }
 
 void ScannerBuilder::AddRoundKeyScan() {
+  printf("Activated round key scan\n");
   do_round_key_scan_ = true;
 }
 
 ScannerVector ScannerBuilder::GetScanners() {
-
+  
   unique_ptr<vector<unique_ptr<ScanStrategy>>> strategies = make_unique<vector<unique_ptr<ScanStrategy>>>();
 
   if (do_round_key_scan_) {
@@ -33,7 +35,7 @@ ScannerVector ScannerBuilder::GetScanners() {
     strategies->push_back(make_unique<RoundKeyScan>(s));
   }
 
-  if (do_structure_scan_) {
+  if (do_crapi_structure_scan_) {
     CryptoAPIScan s = CryptoAPIScan();
     strategies->push_back(make_unique<CryptoAPIScan>(s));
   }

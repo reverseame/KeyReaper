@@ -21,6 +21,27 @@ using namespace key_scanner;
 using namespace error_handling;
 using namespace std;
 
+class ScannerOptions {
+ public:
+  static const string kCryptoAPI;
+  static const string kAESRoundKey;
+};
+const string ScannerOptions::kCryptoAPI = "crapi";
+const string ScannerOptions::kAESRoundKey = "roundkey";
+
+class ActionOptions {
+ public:
+  static const string kPause;
+  static const string kNtPause;
+  static const string kResume;
+  static const string kKill;
+};
+
+const string ActionOptions::kPause = "pause";
+const string ActionOptions::kNtPause = "ntpause";
+const string ActionOptions::kResume = "resume";
+const string ActionOptions::kKill = "kill";
+
 int main(int argc, char *argv[]) {
   argparse::ArgumentParser program("CRAPER");
 
@@ -29,7 +50,7 @@ int main(int argc, char *argv[]) {
   .help("PID of the target process");
 
   program.add_argument("-a", "--action")
-  .choices("pause", "ntpause", "resume", "kill")
+  .choices(ActionOptions::kPause, ActionOptions::kNtPause, ActionOptions::kResume, ActionOptions::kKill)
   .nargs(1)
   .help("The action to perform on all the process threads. If not specified, it will not do any. This action will be performed prior to the extraction of the keys");
 
@@ -64,8 +85,8 @@ int main(int argc, char *argv[]) {
 
   auto sb = ScannerBuilder();
   for (auto scanner_name : scanners) {
-    if (scanner_name == "craper") sb.AddCryptoAPIScan();
-    else if (scanner_name == "roundkey") sb.AddRoundKeyScan();
+    if (scanner_name == ScannerOptions::kCryptoAPI) sb.AddCryptoAPIScan();
+    else if (scanner_name == ScannerOptions::kAESRoundKey) sb.AddRoundKeyScan();
   }
 
   auto scanner = ScannerFacade(pid, sb.GetScanners(), OnDestroyAction::kDoNothing);
@@ -77,53 +98,21 @@ int main(int argc, char *argv[]) {
   if (program.is_used("--action")) {
     auto action = program.get<string>("--action");
     ProgramResult pr = 
-      (action == "resume") ? scanner.ResumeProcess(true) :
-      (action == "ntpause") ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
-      (action == "pause") ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
-      (action == "kill") ? scanner.KillProcess() :
+      (action == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
+      (action == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
+      (action == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+      (action == ActionOptions::kKill) ? scanner.KillProcess() :
       ErrorResult("Invalid option");
   
     cout << pr.GetResultInformation() << endl;
   } else {
     // else: perform no action over the process threads (only extract keys)
-    printf(" [i] No action selected, proceeding to scan");
+    printf(" [i] No action selected, proceeding to scan\n");
   }
 
-  scanner.DoScan();
+  auto keys = scanner.DoScan();
 
-  if (program.is_used("--output")) {
-    scanner.ExportKeysToJSON(program.get<string>("--output"));
-  }
-
-  return 0;
-
-  vector<HeapInformation> heaps;
-  //ProgramResult r = cp.EnumerateHeaps(&heaps);
-  //cout << r.GetResultInformation() << endl;
-  //if (!r.IsOk()) {
-  //  cout << GetLastErrorAsString() << endl;
-  //}
-
-  unordered_set<Key, Key::KeyHashFunction> keys;
-  unsigned int heap_counter = 1;
-  for(HeapInformation heap : heaps) {
-    printf("============\nHeap: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
-    unsigned char* buffer = NULL;
-    //ProgramResult pr2 = cp.CopyHeapData(heap, &buffer);
-    //cout << "Copy result: " <<  pr2.GetResultInformation() << endl;
-    //if (pr2.IsErr()) continue;
-
-    //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
-  
-    CryptoAPIScan scanner = CryptoAPIScan::CryptoAPIScan();
-    keys.merge( scanner.Scan(buffer, heap) ); // add keys
-
-    free(buffer); buffer = NULL;
-  }
-
-  printf("\n=======================\n");
   printf("All found keys: \n");
-
   unsigned int i = 1;
   for (auto &key : keys) {
     
@@ -132,6 +121,10 @@ int main(int argc, char *argv[]) {
     ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
 
     printf("---\n\n");
+  }
+
+  if (program.is_used("--output")) {
+    scanner.ExportKeysToJSON(program.get<string>("--output"));
   }
 
   return 0;

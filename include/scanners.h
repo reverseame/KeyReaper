@@ -17,8 +17,7 @@ class ScanStrategy {
   virtual std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const = 0;
 
   // iostream output
-  virtual void print(std::ostream& os) const { os << "Unnamed scanner"; };
-  friend std::ostream& operator<<(std::ostream& os, const ScanStrategy& scanner) { scanner.print(os); return os; };
+  virtual std::string GetName() const { return "Unnamed scanner"; };
 };
 
 class CryptoAPIScan : public ScanStrategy {
@@ -27,7 +26,7 @@ class CryptoAPIScan : public ScanStrategy {
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
 
   static void InitializeCryptoAPI();
-  void print(std::ostream& os) const override { os << "CryptoAPI Key Scanner"; };
+  std::string GetName() const override { return "CryptoAPI Key Scanner"; };
 
  private:
   static bool cryptoapi_functions_initialized;
@@ -40,7 +39,7 @@ class RoundKeyScan : public ScanStrategy {
   RoundKeyScan() = default;
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
 
-  void print(std::ostream& os) const override { os << "AES Round Key Scanner"; };
+  std::string GetName() const override { return "AES Round Key Scanner"; };
 };
 
 class ScannerVector {
@@ -52,6 +51,7 @@ class ScannerVector {
   auto end() { return scanners_->end(); }
   auto begin() const { return scanners_->begin(); }
   auto end() const { return scanners_->end(); }
+  size_t size() const { return scanners_->size(); }
 
  private:
   std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners_;
@@ -67,7 +67,7 @@ class ScannerBuilder {
   ScannerVector GetScanners();
 
  private:
-  bool do_structure_scan_ = false;
+  bool do_crapi_structure_scan_ = false;
   bool do_round_key_scan_ = false;
 };
 

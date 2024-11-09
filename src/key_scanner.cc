@@ -40,7 +40,10 @@ bool ScannerFacade::IsProcessAlive() const {
 }
 
 std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
-
+  if (scanners_.size() == 0) {
+    printf(" [x] No scanner selected\n");
+    return keys_;
+  }
   // Main functionality
   // Capture memory and pass it to the analyzers
 
@@ -49,15 +52,31 @@ std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     cout << GetLastErrorAsString() << endl;
+    return keys_;
   }
 
-  printf("[i] Key count: %u\n\n", keys_.size());
+  printf("[i] Prev key count: %u\n\n", keys_.size());
 
-  for (const auto& scanner : scanners_) {
-    //scanner->Scan();
-    cout << scanner << endl;
+  unsigned int scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
+  for(HeapInformation heap : heaps) {
+    printf("============\nHeap: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
+    unsigned char* buffer = NULL;
+    ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
+    cout << "Copy result: " <<  result.GetResultInformation() << endl;
+
+    if (result.IsErr()) {
+      free(buffer);
+      continue;
+    }
+
+    cout << "Number of scanners: " << scanners_.size() << endl;
+    for (const auto& scanner : scanners_) {
+      cout << " [" << scanner_count << "/" << total_scanners << "] Scanning with: " << scanner->GetName() << endl;
+      AddKeys(scanner->Scan(buffer, heap));
+    }
   }
 
+  printf("\n=======================\n");
   return keys_;
 }
 
