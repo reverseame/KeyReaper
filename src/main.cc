@@ -59,10 +59,9 @@ int main(int argc, char *argv[]) {
   .help("Output file for the keys JSON. If not specified, no file is exported");
 
   program.add_argument("-s", "--scanners")
-  .choices("crapi", "roundkey")
+  .choices(ScannerOptions::kCryptoAPI, ScannerOptions::kAESRoundKey)
   .nargs(argparse::nargs_pattern::at_least_one)
   .required()
-  .remaining()
   .help("Type of key scan to be performed");
 
   try {
