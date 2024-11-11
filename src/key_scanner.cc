@@ -100,6 +100,10 @@ ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
   return OkResult("Exported keys to: " + output_json);
 }
 
+void ScannerFacade::AddScanners(ScannerVector scanners) {
+  scanners_.merge(move(scanners));
+}
+
 void ScannerFacade::AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }

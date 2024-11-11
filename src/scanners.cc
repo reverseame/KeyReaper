@@ -178,4 +178,11 @@ ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStr
   scanners_ = std::move(strategies);
 }
 
+void ScannerVector::merge(ScannerVector other) {
+  for (auto& strategy : *(other.scanners_)) {
+    scanners_->push_back(std::move(strategy)); // Move each element
+  }
+  other.scanners_->clear(); // Clear moved-from elements
+}
+
 } // namespace key_scanner

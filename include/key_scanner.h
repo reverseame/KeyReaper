@@ -42,6 +42,9 @@ class ScannerFacade {
   std::unordered_set<Key, Key::KeyHashFunction> GetKeys();  
   error_handling::ProgramResult ExportKeysToJSON(std::string output_json);
 
+  // Strategies
+  void AddScanners(ScannerVector scanners);
+
  private:
   void AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys);
 

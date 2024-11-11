@@ -45,6 +45,7 @@ class RoundKeyScan : public ScanStrategy {
 class ScannerVector {
  public:
   explicit ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> strategies);
+  explicit ScannerVector() : scanners_() {};
 
   // To allow iterators
   auto begin() { return scanners_->begin(); }
@@ -52,6 +53,8 @@ class ScannerVector {
   auto begin() const { return scanners_->begin(); }
   auto end() const { return scanners_->end(); }
   size_t size() const { return scanners_->size(); }
+  void push_back(std::unique_ptr<ScanStrategy> scanner) { scanners_->push_back(std::move(scanner)); }
+  void merge(ScannerVector other);
 
  private:
   std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners_;
