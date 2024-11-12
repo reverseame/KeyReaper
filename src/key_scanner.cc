@@ -19,20 +19,20 @@ ProgramResult ScannerFacade::KillProcess(UINT exit_code) {
 // Proxy method
 ProgramResult ScannerFacade::PauseProcess(PauseStrategy strategy, bool force_pause) {
   switch (strategy) {
-  case PauseStrategy::AllThreadPause:
-    return capturer_.PauseProcess(force_pause);
-  
-  case PauseStrategy::NtPauseProcess:
-    return capturer_.PauseProcessNt(force_pause);
-  
-  default:
-    return ErrorResult("Invalid pause strategy");
+    case PauseStrategy::AllThreadPause:
+      return capturer_.PauseProcess(force_pause);
+
+    case PauseStrategy::NtPauseProcess:
+      return capturer_.PauseProcessNt(force_pause);
+
+    default:
+      return ErrorResult("Invalid pause strategy");
   }
 }
 
 // Proxy method
 ProgramResult ScannerFacade::ResumeProcess(bool force_resume) {
-    return capturer_.ResumeProcess(force_resume);
+  return capturer_.ResumeProcess(force_resume);
 }
 
 bool ScannerFacade::IsProcessAlive() const {
@@ -40,6 +40,7 @@ bool ScannerFacade::IsProcessAlive() const {
 }
 
 std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
+  printf(" [i] Starting scan\n");
   if (scanners_.size() == 0) {
     printf(" [x] No scanner selected\n");
     return keys_;
@@ -87,7 +88,7 @@ std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::GetKeys() {
 ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
   if (keys_.empty()) return ErrorResult("No keys were recovered");
 
-  cout << "[i] Exporting keys to " << output_json << ".json" << endl;
+  cout << "[i] Exporting keys to " << output_json << endl;
   nlohmann::json json_data;
   for (auto &key : keys_) {
     json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", key.GetSize()} };
@@ -101,24 +102,28 @@ ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
 }
 
 void ScannerFacade::AddScanners(ScannerVector scanners) {
-  scanners_.merge(move(scanners));
+  unsigned int i = 0;
+  for (auto& scanner : scanners) {
+    scanners_.push_back(move(scanner));
+  }
+  scanners.clear();
 }
 
 void ScannerFacade::AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }
 
-ScannerFacade::ScannerFacade(int pid, ScannerVector strategies, OnDestroyAction on_destroy) 
+ScannerFacade::ScannerFacade(int pid, ScannerVector strategies, OnDestroyAction on_destroy)
     : pid_(pid), scanners_(move(strategies)), on_destroy_(on_destroy), capturer_(ProcessCapturer(pid)), keys_() {
-  
+
 }
 
 ScannerFacade::~ScannerFacade() {
   if (on_destroy_ != OnDestroyAction::kDoNothing) {
     ProgramResult pr =
         (on_destroy_ == OnDestroyAction::kKillProcess) ? capturer_.KillProcess() : (on_destroy_ == OnDestroyAction::kPauseProcess)  ? capturer_.PauseProcess()
-                                                                                 : (on_destroy_ == OnDestroyAction::kResumeProcess) ? capturer_.ResumeProcess()
-                                                                                                                                    : ErrorResult("Invalid destroy option");
+                                                                                                                                    : (on_destroy_ == OnDestroyAction::kResumeProcess) ? capturer_.ResumeProcess()
+                                                                                                                                                                                       : ErrorResult("Invalid destroy option");
 
     cout << pr.GetResultInformation() << endl;
   }
