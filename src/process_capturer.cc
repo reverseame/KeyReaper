@@ -175,8 +175,10 @@ void HeapInformation::AddBlock(BlockInformation new_block) {
   }
 }
 
-ProcessCapturer::ProcessCapturer(int pid) 
+ProcessCapturer::ProcessCapturer(unsigned int pid) 
     : pid_(pid), suspended_(false), is_privileged_(false) {
+
+  if (!IsProcessAlive()) return;
 
   ProgramResult pr = ObtainSeDebug();
   std::cout << " [i] " << pr.GetResultInformation() << std::endl;
@@ -421,19 +423,19 @@ error_handling::ProgramResult ProcessCapturer::InitializeExports() {
 }
 
 bool ProcessCapturer::IsProcessAlive() const {
-  bool active = false;
+  bool is_alive = false;
   HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION , FALSE, pid_);
 
   if (process_handle != NULL) {
     DWORD exit_code;
     bool result = GetExitCodeProcess(process_handle, &exit_code);
     if (result != 0 && exit_code == STILL_ACTIVE) {
-      active = true;
+      is_alive = true;
     }
   }
 
   CloseHandle(process_handle);
-  return active;
+  return is_alive;
 }
 
 ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read) {

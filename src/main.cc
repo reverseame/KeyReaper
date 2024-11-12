@@ -1,137 +1,195 @@
 // Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
+#define NOMINMAX  // To avoid macro collision (windows and argparse)
 #include <windows.h>
 
 #include <intsafe.h>
 #include <string>
 #include <iostream>
 #include <vector>
+#include <map>
 #include <stdlib.h>
 #include <functional>
+
+#include <CLI/CLI.hpp>
 
 #include "process_capturer.h"
 #include "program_result.h"
 #include "scanners.h"
+#include "key_scanner.h"
 
 using namespace process_manipulation;
 using namespace key_scanner;
 using namespace error_handling;
 using namespace std;
 
-#include <nlohmann/json.hpp>
-#include <fstream>
-void ExportKeysToJSON(unordered_set<Key, Key::KeyHashFunction> keys, string output_json) {
-  cout << "[i] Exporting keys to " << output_json << ".json" << endl;
-  nlohmann::json json_data;
-  for (auto &key : keys) {
-    json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", key.GetSize()} };
+enum class ActionOptions : int { kPause, kNtPause, kResume, kKill, kDoNothing };
+enum class ScannerOptions : int { kCryptoAPIScan, kAESRoundKeyScan };
+
+std::map<std::string, ActionOptions> actions_map {
+    {"resume", ActionOptions::kResume },
+    {"pause", ActionOptions::kPause},
+    {"ntpause", ActionOptions::kNtPause},
+    {"kill", ActionOptions::kKill},
+    {"nothing", ActionOptions::kDoNothing},
+};
+
+std::map<std::string, ScannerOptions> scanners_map {
+    {"roundkey", ScannerOptions::kAESRoundKeyScan },
+    {"crapi", ScannerOptions::kCryptoAPIScan },
+};
+
+template <typename EnumClass>
+std::string GetChoices(const std::map<std::string, EnumClass>& options_map, const std::string& description) {
+  // Dynamically build the choices string from the map keys
+  std::ostringstream choices;
+  choices << description << " (";
+  for (auto it = options_map.begin(); it != options_map.end(); ++it) {
+    choices << it->first;
+    if (std::next(it) != options_map.end()) {  // add comma if not the last element
+      choices << ", ";
+    }
   }
-
-  ofstream file(output_json + ".json");
-  file << json_data.dump(2);  // Pretty print
-  file.close();
-}
-
-#include <strsafe.h> // PrintLastError
-
-void PrintLastError(LPCTSTR lpszFunction)  { 
-    // Retrieve the system error message for the last-error code
-
-    LPVOID lpMsgBuf;
-    LPVOID lpDisplayBuf;
-    DWORD dw = GetLastError(); 
-
-    FormatMessage(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL,
-        dw,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR) &lpMsgBuf,
-        0, NULL );
-
-    // Display the error message and exit the process
-
-    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
-        (lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR)); 
-    StringCchPrintf((LPTSTR)lpDisplayBuf, 
-        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error %d: %s"), 
-        lpszFunction, dw, lpMsgBuf); 
-    MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK); 
-
-    LocalFree(lpMsgBuf);
-    LocalFree(lpDisplayBuf);
+  choices << ")";
+  return choices.str();
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    cout << "[x] Argument number mismatch" << endl;
-    cout << "    1) PID of the process" << endl;
-    cout << "    2) Action to perform [resume, pause, kill]" << endl;
-    return -1;
+  CLI::App app("CRAPER: cryptographic key recovery for live processes");
+
+  // CUSTOM PARSERS
+  auto actions_transformer = CLI::Transformer(actions_map, CLI::ignore_case)
+      .description(GetChoices<ActionOptions>(actions_map, "Actions"));
+  auto scanners_transformer = CLI::Transformer(scanners_map, CLI::ignore_case)
+      .description(GetChoices<ScannerOptions>(scanners_map, "Scanners"));
+
+  // INPUT VARIABLES
+  ActionOptions action_after{ActionOptions::kDoNothing};
+  ActionOptions action_before{ActionOptions::kDoNothing};
+  std::vector<ScannerOptions> scanners;
+  string output_json = "";
+  unsigned int pid = 0;
+
+
+  // KEY SCANNING
+  CLI::App* scan_subcommand = app.add_subcommand("scan", "Scan for keys in the process. It is possible to add more than one at a time");
+  app.require_subcommand(1);
+  scan_subcommand->add_option("-b,--before", action_before, "Action to perform before the scan over the threads of the process")
+      ->transform(actions_transformer);
+  scan_subcommand->add_option("-a,--after", action_after, "Action to perform after the scan over the threads of the process")
+      ->transform(actions_transformer);
+
+  scan_subcommand->add_option("-o,--output", output_json, "Output file for the keys JSON. If not specified, no file is exported. If a file exists with the same name, it gets overwritten.")
+      ->required();
+
+  scan_subcommand->add_option("-p,--pid", pid, "PID of the target process")
+      ->required()
+      ->check(CLI::NonNegativeNumber);
+
+  scan_subcommand->add_option("--scanners", scanners, "Scanners to extract keys with")
+      ->required()
+      ->expected(1, -1)
+      ->transform(scanners_transformer);
+
+
+  // PROCESS SUBCOMMAND
+  CLI::App* process_subcommand = app.add_subcommand("proc", "For manipulating all threads of the target process");
+  process_subcommand->add_option("-p,--pid", pid, "PID of the target process")
+      ->required()
+      ->check(CLI::PositiveNumber);
+  process_subcommand->add_option("-a,--action", action_before, "Action to perform")
+      ->required()
+      ->transform(actions_transformer);
+
+
+  // TODO: THREAD HANDLING
+
+  // Macro for parsing and error checking (will exit if parsing fails)
+  CLI11_PARSE(app, argc, argv);
+
+  try {
+
+    if ( app.get_subcommands().empty() ) {
+      throw CLI::CallForHelp();
+    } else if ( app.get_subcommands().size() > 1 ) {
+      cerr << "[x] No more than one subcommand is allowed" << endl;
+      throw CLI::CallForHelp();
+    }
+  } catch (const CLI::Error &e) {
+    return app.exit(e);
   }
 
-  // Not meant to be used in the final version
-  int int_pid = atoi(argv[1]);
-  DWORD pid;
-  bool err = IntToDWord(int_pid, &pid);
-
-  if (err) {
-    cout << "Could not convert pid to DWORD: " << err << endl;
-    return -1;
-  }
   cout << "[i] Capturing PID: " << pid << endl;
-
-  ProcessCapturer cp = ProcessCapturer(pid);
-
-  char option = argv[2][0];
-  ProgramResult pr = 
-      (option == 'r') ? cp.ResumeProcess(true) : 
-      (option == 'p') ? cp.PauseProcessNt() : 
-      (option == 'k') ? cp.KillProcess() : 
-      ErrorResult("Invalid option");
-  
-  cout << pr.GetResultInformation() << endl;
-
-  vector<HeapInformation> heaps;
-  ProgramResult r = cp.EnumerateHeaps(&heaps);
-  cout << r.GetResultInformation() << endl;
-  if (!r.IsOk()) {
-    PrintLastError(TEXT("GETHEAP"));
+  auto scanner = ScannerFacade(pid, ScannerVector(), OnDestroyAction::kDoNothing);
+  if (!scanner.IsProcessAlive()) {
+    printf("[x] Process is not alive");
+    exit(1);
   }
 
-  unordered_set<Key, Key::KeyHashFunction> keys;
-  unsigned int heap_counter = 1;
-  for(HeapInformation heap : heaps) {
-    printf("============\nHeap: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
-    unsigned char* buffer = NULL;
-    ProgramResult pr2 = cp.CopyHeapData(heap, &buffer);
-    cout << "Copy result: " <<  pr2.GetResultInformation() << endl;
-    if (pr2.IsErr()) continue;
+  // PRE-SCAN ACTIONS
+  if (process_subcommand || scan_subcommand) {
+    if (action_before != ActionOptions::kDoNothing) {
+      ProgramResult pr =
+          (action_before == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
+          (action_before == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
+          (action_before == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+          (action_before == ActionOptions::kKill) ? scanner.KillProcess() :
+          ErrorResult("Invalid option");
 
-    //ProcessCapturer::PrintMemory(buffer, 64, heap.base_address);
-  
-    CryptoAPIScan scanner = CryptoAPIScan::CryptoAPIScan();
-    keys.merge( scanner.Scan(buffer, heap) ); // add keys
-
-    free(buffer); buffer = NULL;
+      cout << pr.GetResultInformation() << endl;
+    } else {
+      // else: perform no action over the process threads (only extract keys)
+      printf(" [i] No action selected, proceeding to scan\n");
+    }
   }
 
-  printf("\n=======================\n");
-  printf("All found keys: \n");
+  // SCANNING
+  if (scan_subcommand) {
+    if (scanners.empty()) {
+      printf(" [x] No scanner selected\n");
+      exit(2);
+    }
 
-  ExportKeysToJSON(keys, "keys");
+    auto sb = ScannerBuilder();
+    for (auto scanner : scanners) {
+      if (scanner == ScannerOptions::kCryptoAPIScan) sb.AddCryptoAPIScan();
+      else if (scanner == ScannerOptions::kAESRoundKeyScan) sb.AddRoundKeyScan();
+    }
 
-  unsigned int i = 1;
-  for (auto &key : keys) {
-    
-    cout << " Key [" << i++ << "/" << keys.size() << "]: " << endl;
-    cout << "  * Type: " << key.GetAlgorithm() << endl << "  * Size: " << key.GetSize() << " bytes" << endl << endl;
-    ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
+    scanner.AddScanners(sb.GetScanners());
 
-    printf("---\n\n");
+    printf("Starting key scan\n");
+    auto keys = scanner.DoScan();
+
+    printf("All found keys: \n");
+    unsigned int i = 1;
+    for (auto &key : keys) {
+
+      cout << " Key [" << i++ << "/" << keys.size() << "]: " << endl;
+      cout << "  * Type: " << key.GetAlgorithm() << endl << "  * Size: " << key.GetSize() << " bytes" << endl << endl;
+      ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
+
+      printf("---\n\n");
+    }
+
+    if (output_json != "") {
+      scanner.ExportKeysToJSON(output_json);
+    }
   }
 
+  if (scan_subcommand) {
+    if (action_after != ActionOptions::kDoNothing) {
+      ProgramResult pr =
+          (action_after == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
+          (action_after == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
+          (action_after == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+          (action_after == ActionOptions::kKill) ? scanner.KillProcess() :
+          ErrorResult("Invalid option");
+
+      cout << pr.GetResultInformation() << endl;
+    } else {
+      // else: perform no action over the process threads (only extract keys)
+      printf(" [i] No post action selected\n");
+    }
+  }
   return 0;
 }

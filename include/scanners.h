@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
+#include <iostream>
 
 namespace key_scanner {
 
@@ -14,6 +15,9 @@ class ScanStrategy {
  public:
   virtual ~ScanStrategy() = default;
   virtual std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const = 0;
+
+  // iostream output
+  virtual std::string GetName() const { return "Unnamed scanner"; };
 };
 
 class CryptoAPIScan : public ScanStrategy {
@@ -22,6 +26,7 @@ class CryptoAPIScan : public ScanStrategy {
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
 
   static void InitializeCryptoAPI();
+  std::string GetName() const override { return "CryptoAPI Key Scanner"; };
 
  private:
   static bool cryptoapi_functions_initialized;
@@ -33,6 +38,26 @@ class RoundKeyScan : public ScanStrategy {
  public:
   RoundKeyScan() = default;
   std::unordered_set<key_scanner::Key, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
+
+  std::string GetName() const override { return "AES Round Key Scanner"; };
+};
+
+class ScannerVector {
+ public:
+  explicit ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners);
+  explicit ScannerVector() : scanners_(std::make_unique<std::vector<std::unique_ptr<ScanStrategy>>>()) {};
+
+  // To allow iterators
+  auto begin() { return scanners_->begin(); }
+  auto end() { return scanners_->end(); }
+  auto begin() const { return scanners_->begin(); }
+  auto end() const { return scanners_->end(); }
+  size_t size() const { return scanners_->size(); }
+  void clear() { scanners_->clear(); }
+  void push_back(std::unique_ptr<ScanStrategy> scanner) { scanners_->push_back(std::move(scanner)); }
+
+ private:
+  std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners_;
 };
 
 class ScannerBuilder {
@@ -42,10 +67,10 @@ class ScannerBuilder {
   void AddCryptoAPIScan();
   void AddRoundKeyScan();
 
-  std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> GetScanners();
+  ScannerVector GetScanners();
 
  private:
-  bool do_structure_scan_ = false;
+  bool do_crapi_structure_scan_ = false;
   bool do_round_key_scan_ = false;
 };
 

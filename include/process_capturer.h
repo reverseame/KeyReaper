@@ -68,7 +68,7 @@ class HeapInformation {
 class ProcessCapturer {
  public:
   // Constructors
-  ProcessCapturer(int pid);
+  ProcessCapturer(unsigned int pid);
 
   // Process manipulation interface
   /**

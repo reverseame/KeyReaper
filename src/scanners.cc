@@ -17,14 +17,14 @@ using HeapInformation = process_manipulation::HeapInformation;
 namespace key_scanner {
 
 void ScannerBuilder::AddCryptoAPIScan() {
-  do_structure_scan_ = true;
+  do_crapi_structure_scan_ = true;
 }
 
 void ScannerBuilder::AddRoundKeyScan() {
   do_round_key_scan_ = true;
 }
 
-unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
+ScannerVector ScannerBuilder::GetScanners() {
 
   unique_ptr<vector<unique_ptr<ScanStrategy>>> strategies = make_unique<vector<unique_ptr<ScanStrategy>>>();
 
@@ -33,12 +33,12 @@ unique_ptr<vector<unique_ptr<ScanStrategy>>> ScannerBuilder::GetScanners() {
     strategies->push_back(make_unique<RoundKeyScan>(s));
   }
 
-  if (do_structure_scan_) {
+  if (do_crapi_structure_scan_) {
     CryptoAPIScan s = CryptoAPIScan();
     strategies->push_back(make_unique<CryptoAPIScan>(s));
   }
 
-  return strategies;
+  return ScannerVector(move(strategies));
 }
 
 HMODULE CryptoAPIScan::cryptoapi_base_address = NULL;
@@ -74,14 +74,14 @@ void CryptoAPIScan::InitializeCryptoAPI() {
           cryptoapi_functions_initialized = false;
           break;
         }
-      }      
+      }
     }
   }
 }
 std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
   unordered_set<Key, Key::KeyHashFunction> found_keys = unordered_set<Key, Key::KeyHashFunction>();
-  
+
   InitializeCryptoAPI();
   if (cryptoapi_functions_initialized) {
 
@@ -107,7 +107,7 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
       printf("%02hhX ", byte_pattern[i]);
       if (i % 16 == 15) { printf("\n"); }
     } printf("\n");
-    */    
+    */
 
     auto searcher = boyer_moore_horspool_searcher(byte_pattern, byte_pattern + pattern_size);
 
@@ -139,11 +139,11 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
             Key key = Key(key_data_struct, (unsigned char*) ptr);
             found_keys.insert(key);
             // ProcessCapturer::PrintMemory((unsigned char*) (ptr), 16, ptr + heap_info.base_address - (ULONG_PTR) input_buffer);
-            
+
           } else {
             printf(" Key [0x%p] is out of this heap\n", (void*) ptr);
             printf("  > ALG_ID: %X\n", key_data_struct->alg);
-          } 
+          }
         } else {
           printf(" Key data [0x%p] is out of this heap\n", magic_struct_ptr->key_data);
         }
@@ -170,6 +170,10 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
 
 std::unordered_set<Key, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
   return std::unordered_set<Key, Key::KeyHashFunction>();
+}
+
+ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners) {
+  scanners_ = std::move(scanners);
 }
 
 } // namespace key_scanner

@@ -49,6 +49,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(argparse)
 
+FetchContent_Declare(
+  cli11_proj
+  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+  GIT_TAG v2.4.2
+)
+FetchContent_MakeAvailable(cli11_proj)
+
 ### Binaries #############
 
 set(EXECUTABLE_NAME "craper")
@@ -56,13 +63,13 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/key.cc
     ${SOURCE_BASE_DIR}/scanners.cc
-    #${SOURCE_BASE_DIR}/key_scanner.cc
+    ${SOURCE_BASE_DIR}/key_scanner.cc
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${SOURCE_BASE_DIR}/main.cc
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes)
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
