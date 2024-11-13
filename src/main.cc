@@ -1,5 +1,4 @@
 // Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
-#define NOMINMAX  // To avoid macro collision (windows and argparse)
 #include <windows.h>
 
 #include <intsafe.h>
@@ -105,18 +104,6 @@ int main(int argc, char *argv[]) {
 
   // Macro for parsing and error checking (will exit if parsing fails)
   CLI11_PARSE(app, argc, argv);
-
-  try {
-
-    if ( app.get_subcommands().empty() ) {
-      throw CLI::CallForHelp();
-    } else if ( app.get_subcommands().size() > 1 ) {
-      cerr << "[x] No more than one subcommand is allowed" << endl;
-      throw CLI::CallForHelp();
-    }
-  } catch (const CLI::Error &e) {
-    return app.exit(e);
-  }
 
   cout << "[i] Capturing PID: " << pid << endl;
   auto scanner = ScannerFacade(pid, ScannerVector(), OnDestroyAction::kDoNothing);
