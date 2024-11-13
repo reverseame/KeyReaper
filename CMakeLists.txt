@@ -48,6 +48,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cli11_proj)
 
+FetchContent_Declare(
+  indicators
+  GIT_REPOSITORY https://github.com/p-ranav/indicators.git
+  GIT_TAG v2.3
+)
+FetchContent_MakeAvailable(indicators)
+
 ### Binaries #############
 
 set(EXECUTABLE_NAME "craper")
@@ -80,7 +87,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/decryptors/PoCDcryptor/poc-decryptor.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 indicators common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 # --- Cryptography: Next Generation Dummy Ransomware -----

@@ -7,10 +7,15 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <thread>
 #include <variant>
+#include <chrono>
 
 #include <nlohmann/json.hpp>
 #include <CLI/CLI.hpp>
+#include <indicators/indeterminate_progress_bar.hpp>
+#include <indicators/cursor_control.hpp>
+#include <indicators/termcolor.hpp>
 
 #include <windows.h>
 #include <wincrypt.h>
@@ -25,6 +30,7 @@ using namespace error_handling;
 using namespace key_scanner;
 namespace fs = std::filesystem;
 
+using namespace indicators;
 using json = nlohmann::json;
 
 CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
@@ -40,7 +46,7 @@ CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
 
       if (json_data.size() > 0) {
         if (json_data.size() != 1) {
-          cout << " [!] More than one key found. Only the first one in the list will be used" << endl;
+          printf(" [!] More than one key found. Only the first one in the list will be used\n");
         }
         
         auto key = json_data.begin().key();
@@ -60,13 +66,13 @@ CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
             } printf("\n");
 
           } else {
-            cerr <<  "[x] Key is not AES" << endl;
+            printf(" [x] Key is not AES\n");
           }
         } else {
-          cerr << " [x] Size field not found" << endl;
+          printf(" [x] Size field not found\n");
         }
       } else {
-        cerr << " [x] The JSON file must contain at least one key" << endl;
+        printf(" [x] The JSON file must contain at least one key\n");
       }
 
     } catch (json::parse_error& e) {
@@ -82,7 +88,7 @@ CRAPI_PLAINTEXTKEYBLOB GetKeyFromJSON(string json_file) {
     key_blob_bytes = CRAPI_PLAINTEXTKEYBLOB(16, CALG_AES_128, reinterpret_cast<const BYTE*>(key_bytes.data()));
 
   } else {
-    cerr << " [x] Key size does not match AES 128" << endl;
+    printf(" [x] Key size does not match AES 128\n");
   }
 
   return key_blob_bytes;
@@ -94,14 +100,14 @@ bool SaveDecryptedDataToFile(const fs::path& encrypted_file_path, const vector<B
 
   ofstream decrypted_file(output_file_path, ios::binary);
   if (!decrypted_file) {
-    cerr << " [x] Failed to create decrypted file: " << output_file_path << '\n';
+    // cerr << " [x] Failed to create decrypted file: " << output_file_path << '\n';
     return false;
   }
 
   decrypted_file.write(reinterpret_cast<const char*>(decrypted_data.data()), decrypted_data.size());
   decrypted_file.close();
 
-  cout << " [i] Decrypted file saved as: " << output_file_path << '\n';
+  // cout << " [i] Decrypted file saved as: " << output_file_path << '\n';
   return true;
 }
 
@@ -125,9 +131,50 @@ BOOL ImportCryptoKeyToProvider(string keys_json, HCRYPTPROV hProv, HCRYPTKEY *hK
   CRAPI_PLAINTEXTKEYBLOB key = GetKeyFromJSON(keys_json);
   if (key.isOk()) {
     status = CryptImportKey(hProv, (BYTE*) &key, key.size(), 0, 0, hKey);
-  } else cerr << " [x] No key could be retieved" << endl;
+  } else printf(" [x] No key could be retieved\n");
 
 	return status;
+}
+
+void IteratePathDecryptingBar(string path, string extension, bool recursive, IndeterminateProgressBar& bar, HCRYPTKEY key_handle) {
+  using DirIterator = std::variant<fs::recursive_directory_iterator, fs::directory_iterator>;
+  DirIterator iterator = recursive ? DirIterator(fs::recursive_directory_iterator(path))
+                                   : DirIterator(fs::directory_iterator(path));
+
+  visit([&] (auto& directory_iterator) {
+    for (const auto &p : directory_iterator) {
+      if (p.path().extension() == extension) {
+        // cout << " [i] Decrypting file: " << p.path().string() << '\n';
+        // bar.set_option(option::PostfixText{ "Decrypting file: " + p.path().string() });
+
+        ifstream file(p.path(), ios::binary);
+        if (!file) {
+          cerr << " [x] Failed to open file: " << p.path() << endl;
+          continue;
+        }
+
+        vector<BYTE> encrypted_data((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+        file.close();
+
+        if (DecryptData(key_handle, encrypted_data)) {
+          if (!SaveDecryptedDataToFile(p.path(), encrypted_data)) {
+            //cout << " [x] Failed to write unencrypted data to file" << endl;
+          } else {
+            //cout << " [i] Deleting encrypted file" << endl;
+            // bar.set_option(option::PostfixText{ "Deleting encrypted file" });
+            fs::remove(p);
+          }
+        }
+        //printf(" ----------\n");
+      }
+    }
+  }, iterator);
+  
+  // Update bar status
+  bar.mark_as_completed();
+  cout << termcolor::bold << termcolor::green
+    << "Files decrypted\n" << termcolor::reset;
+  bar.mark_as_completed();
 }
 
 int DecryptFiles(string keys_json, string path, string extension, bool recursive) {
@@ -148,37 +195,28 @@ int DecryptFiles(string keys_json, string path, string extension, bool recursive
     return 3;
   }
 
-  // ITERATE OVER DIRECTORY
-  using DirIterator = std::variant<fs::recursive_directory_iterator, fs::directory_iterator>;
-  DirIterator iterator = recursive ? DirIterator(fs::recursive_directory_iterator(path))
-                                   : DirIterator(fs::directory_iterator(path));
+  // User feedback
+  IndeterminateProgressBar bar {
+    indicators::option::BarWidth{40},
+    indicators::option::Start{"["},
+    indicators::option::Fill{"·"},
+    indicators::option::Lead{"<==>"},
+    indicators::option::End{"]"},
+    indicators::option::PostfixText{"Checking for Updates"},
+    indicators::option::ForegroundColor{indicators::Color::yellow},
+    indicators::option::FontStyles{
+        std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+  };
 
-  visit([&] (auto& directory_iterator) {
-    for (const auto &p : directory_iterator) {
-      if (p.path().extension() == extension) {
-        cout << " [i] Decrypting file: " << p.path().string() << '\n';
+  show_console_cursor(false);
+  std::thread decrypt_files_job(IteratePathDecryptingBar, path, extension, recursive, std::ref(bar), key_handle);
+  while (!bar.is_completed()) {
+    bar.tick();
+    this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 
-        ifstream file(p.path(), ios::binary);
-        if (!file) {
-          cerr << " [x] Failed to open file: " << p.path() << endl;
-          continue;
-        }
-
-        vector<BYTE> encrypted_data((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-        file.close();
-
-        if (DecryptData(key_handle, encrypted_data)) {
-          if (!SaveDecryptedDataToFile(p.path(), encrypted_data)) {
-            cerr << " [x] Failed to write unencrypted data to file" << endl;
-          } else {
-            cout << " [i] Deleting encrypted file" << endl;
-            fs::remove(p);
-          }
-        }
-        printf(" ----------\n");
-      }
-    }
-  }, iterator);
+  decrypt_files_job.join();
+  show_console_cursor(true);
 
   return 0;
 }
