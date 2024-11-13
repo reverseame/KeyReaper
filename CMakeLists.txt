@@ -50,11 +50,6 @@ FetchContent_MakeAvailable(cli11_proj)
 
 ### Binaries #############
 
-# Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE indicators)
-# Executable output
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
 set(EXECUTABLE_NAME "craper")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
