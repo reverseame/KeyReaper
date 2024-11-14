@@ -125,7 +125,7 @@ class CrAPIKeyWrapper {
 
   ALG_ID GetAlgorithm() {
     if (algorithm_ == 0) {
-      algorithm_ = (ALG_ID) GetParameter(KP_ALGID).data();
+      algorithm_ = *reinterpret_cast<ALG_ID*>(GetParameter(KP_ALGID).data());
     }
     return algorithm_;
   };

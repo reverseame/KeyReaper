@@ -56,11 +56,11 @@ std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
     return keys_;
   }
 
-  printf("[i] Prev key count: %u\n\n", keys_.size());
+  printf("[i] Prev key count: %zu\n\n", keys_.size());
 
-  unsigned int scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
+  size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
   for(HeapInformation heap : heaps) {
-    printf("============\nHeap: %d/%zd [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
+    printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
     unsigned char* buffer = NULL;
     ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
     cout << "Copy result: " <<  result.GetResultInformation() << endl;
