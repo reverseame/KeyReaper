@@ -18,6 +18,12 @@ else()
     set(ARCHITECTURE_APPEND "x64")
 endif()
 
+# Optimization flags
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+endif()
+
+
 ## Ease for includes
 add_library(common_includes INTERFACE)
 target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/craper)
