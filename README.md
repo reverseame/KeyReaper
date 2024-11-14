@@ -56,3 +56,50 @@ The default compilation settings assume that the user wants to compile for both 
 # 64 only in debug mode
 .\configure.ps1 64
 ```
+
+## CLI
+The program offers an interface for easily managing processes and extracting keys.
+It is split into two main subcommands (so far) which allows us to scan for keys (`scan`) 
+and managing processes' execution `proc`. You can invoke the program with the help
+flag for further information.
+```
+PS C:\> .\craper_x86.exe --help
+CRAPER: cryptographic key recovery for live processes
+Usage: C:\craper_x86.exe [OPTIONS] SUBCOMMAND
+
+Options:
+  -h,--help                   Print this help message and exit
+
+Subcommands:
+  scan                        Scan for keys in the process
+  proc                        For manipulating all threads of the target process
+```
+
+Subcommands have also a help menu with information.
+
+```
+PS C:\> .\craper_x86.exe scan --help
+Scan for keys in the process
+Usage: C:\craper_x86.exe scan [OPTIONS]
+
+Options:
+  -h,--help                   Print this help message and exit
+  -b,--before ENUM:Actions (kill, nothing, ntpause, pause, resume)
+                              Action to perform before the scan over all the threads of the process
+  -a,--after ENUM:Actions (kill, nothing, ntpause, pause, resume)
+                              Action to perform after the scan over all the threads of the process
+  -o,--output TEXT REQUIRED   Output file for the keys JSON. If not specified, no file is exported. If a file exists with the same name, it gets overwritten.
+  -p,--pid UINT:NONNEGATIVE REQUIRED
+                              PID of the target process
+  --scanners ENUM:Scanners (crapi, roundkey) ... REQUIRED
+                              Scanners to extract keys with. You can pick one or more.
+```
+
+An example execution:
+```
+PS C:\> .\craper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
+```
+
+## Library
+It is not required to use this project as an executable. Instead, it is possible
+to include it as a dependency.

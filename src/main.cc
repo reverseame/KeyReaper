@@ -1,4 +1,3 @@
-// Compilar con: cl /EHsc /std:c++17 .\main.cc User32.lib
 #include <windows.h>
 
 #include <intsafe.h>
@@ -25,16 +24,16 @@ enum class ActionOptions : int { kPause, kNtPause, kResume, kKill, kDoNothing };
 enum class ScannerOptions : int { kCryptoAPIScan, kAESRoundKeyScan };
 
 std::map<std::string, ActionOptions> actions_map {
-    {"resume", ActionOptions::kResume },
-    {"pause", ActionOptions::kPause},
-    {"ntpause", ActionOptions::kNtPause},
-    {"kill", ActionOptions::kKill},
-    {"nothing", ActionOptions::kDoNothing},
+  {"resume", ActionOptions::kResume },
+  {"pause", ActionOptions::kPause},
+  {"ntpause", ActionOptions::kNtPause},
+  {"kill", ActionOptions::kKill},
+  {"nothing", ActionOptions::kDoNothing},
 };
 
 std::map<std::string, ScannerOptions> scanners_map {
-    {"roundkey", ScannerOptions::kAESRoundKeyScan },
-    {"crapi", ScannerOptions::kCryptoAPIScan },
+  {"roundkey", ScannerOptions::kAESRoundKeyScan },
+  {"crapi", ScannerOptions::kCryptoAPIScan },
 };
 
 template <typename EnumClass>
@@ -57,9 +56,9 @@ int main(int argc, char *argv[]) {
 
   // CUSTOM PARSERS
   auto actions_transformer = CLI::Transformer(actions_map, CLI::ignore_case)
-      .description(GetChoices<ActionOptions>(actions_map, "Actions"));
+    .description(GetChoices<ActionOptions>(actions_map, "Actions"));
   auto scanners_transformer = CLI::Transformer(scanners_map, CLI::ignore_case)
-      .description(GetChoices<ScannerOptions>(scanners_map, "Scanners"));
+    .description(GetChoices<ScannerOptions>(scanners_map, "Scanners"));
 
   // INPUT VARIABLES
   ActionOptions action_after{ActionOptions::kDoNothing};
@@ -73,31 +72,31 @@ int main(int argc, char *argv[]) {
   CLI::App* scan_subcommand = app.add_subcommand("scan", "Scan for keys in the process. It is possible to add more than one at a time");
   app.require_subcommand(1);
   scan_subcommand->add_option("-b,--before", action_before, "Action to perform before the scan over the threads of the process")
-      ->transform(actions_transformer);
+    ->transform(actions_transformer);
   scan_subcommand->add_option("-a,--after", action_after, "Action to perform after the scan over the threads of the process")
-      ->transform(actions_transformer);
+    ->transform(actions_transformer);
 
   scan_subcommand->add_option("-o,--output", output_json, "Output file for the keys JSON. If not specified, no file is exported. If a file exists with the same name, it gets overwritten.")
-      ->required();
+    ->required();
 
   scan_subcommand->add_option("-p,--pid", pid, "PID of the target process")
-      ->required()
-      ->check(CLI::NonNegativeNumber);
+    ->required()
+    ->check(CLI::NonNegativeNumber);
 
   scan_subcommand->add_option("--scanners", scanners, "Scanners to extract keys with")
-      ->required()
-      ->expected(1, -1)
-      ->transform(scanners_transformer);
+    ->required()
+    ->expected(1, -1)
+    ->transform(scanners_transformer);
 
 
   // PROCESS SUBCOMMAND
   CLI::App* process_subcommand = app.add_subcommand("proc", "For manipulating all threads of the target process");
   process_subcommand->add_option("-p,--pid", pid, "PID of the target process")
-      ->required()
-      ->check(CLI::PositiveNumber);
+    ->required()
+    ->check(CLI::PositiveNumber);
   process_subcommand->add_option("-a,--action", action_before, "Action to perform")
-      ->required()
-      ->transform(actions_transformer);
+    ->required()
+    ->transform(actions_transformer);
 
 
   // TODO: THREAD HANDLING
@@ -116,11 +115,11 @@ int main(int argc, char *argv[]) {
   if (process_subcommand || scan_subcommand) {
     if (action_before != ActionOptions::kDoNothing) {
       ProgramResult pr =
-          (action_before == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
-          (action_before == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
-          (action_before == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
-          (action_before == ActionOptions::kKill) ? scanner.KillProcess() :
-          ErrorResult("Invalid option");
+      (action_before == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
+      (action_before == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
+      (action_before == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+      (action_before == ActionOptions::kKill) ? scanner.KillProcess() :
+      ErrorResult("Invalid option");
 
       cout << pr.GetResultInformation() << endl;
     } else {
@@ -128,6 +127,9 @@ int main(int argc, char *argv[]) {
       printf(" [i] No action selected, proceeding to scan\n");
     }
   }
+
+  if (action_before == ActionOptions::kKill && scan_subcommand)
+    return 0;
 
   // SCANNING
   if (scan_subcommand) {
@@ -163,14 +165,15 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // POST-SCAN ACTIONS
   if (scan_subcommand) {
     if (action_after != ActionOptions::kDoNothing) {
       ProgramResult pr =
-          (action_after == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
-          (action_after == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
-          (action_after == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
-          (action_after == ActionOptions::kKill) ? scanner.KillProcess() :
-          ErrorResult("Invalid option");
+        (action_after == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
+        (action_after == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
+        (action_after == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+        (action_after == ActionOptions::kKill) ? scanner.KillProcess() :
+        ErrorResult("Invalid option");
 
       cout << pr.GetResultInformation() << endl;
     } else {
