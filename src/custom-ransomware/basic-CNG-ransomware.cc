@@ -156,12 +156,12 @@ bool CipherFiles() {
 
   printf(" [i] Enumerating text files\n");
   vector<string> text_files = RetrieveTextFiles(path);
-  printf("  * Found %u text files\n", text_files.size());
+  printf("  * Found %zu text files\n", text_files.size());
 
   printf(" [i] Ciphering text files in folder\n");
   SIZE_T file_count = 1;
   for (const string& filename : text_files) {
-    printf(" Progress: %u/%u\t\t\r", file_count++, text_files.size());
+    printf(" Progress: %zu/%zu\t\t\r", file_count++, text_files.size());
 
     wstring wide_input_filename(filename.begin(), filename.end()); // Convertir el nombre de archivo a wstring
     wide_input_filename = path + wide_input_filename; // Pasar el path
