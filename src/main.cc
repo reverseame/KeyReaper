@@ -76,8 +76,9 @@ int main(int argc, char *argv[]) {
   scan_subcommand->add_option("-a,--after", action_after, "Action to perform after the scan over the threads of the process")
     ->transform(actions_transformer);
 
-  scan_subcommand->add_option("-o,--output", output_json, "Output file for the keys JSON. If not specified, no file is exported. If a file exists with the same name, it gets overwritten.")
-    ->required();
+  scan_subcommand->add_option("-o,--output", output_json, 
+  "Output file for the keys JSON. If not specified, no file is exported."
+  "If a file exists with the same name, it gets overwritten.");
 
   scan_subcommand->add_option("-p,--pid", pid, "PID of the target process")
     ->required()
