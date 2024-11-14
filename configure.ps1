@@ -3,6 +3,11 @@ param (
     [String]$release = "Debug"
 )
 
+if ((${release} -ne "Release") -and (${release} -ne "Debug")) {
+    Write-Host "[x] Build mode must be Release or Debug"
+    Exit
+}
+
 # Create build directory if it doesn't exist
 if (-not (Test-Path -Path "build")) {
     New-Item -ItemType Directory -Path "build"
