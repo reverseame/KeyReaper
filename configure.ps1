@@ -22,8 +22,9 @@ if ($build -eq 0 -or $build -eq 32) {
     }
 
     Set-Location "build32"
+    Write-Host "Build type: $release"
     # Run CMake to configure the project
-    cmake -DCMAKE_GENERATOR_PLATFORM=Win32 -G "Visual Studio 17 2022" -A Win32 ../.. -CMAKE_BUILD_TYPE=${release}
+    cmake -DCMAKE_GENERATOR_PLATFORM=Win32 -DCMAKE_BUILD_TYPE=$release -G "Visual Studio 17 2022" -A Win32 ../..
     cmake --build . --config ${release}
     Set-Location ..
 }
@@ -34,8 +35,8 @@ if ($build -eq 0 -or $build -eq 64) {
         New-Item -ItemType Directory -Path "build64"
     }
     Set-Location "build64"
-    cmake -DCMAKE_GENERATOR_PLATFORM=x64 -G "Visual Studio 17 2022" -A x64 ../.. -CMAKE_BUILD_TYPE=${release}
-    cmake --build . --config ${release}
+    cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DCMAKE_BUILD_TYPE=$release -G "Visual Studio 17 2022" -A x64 ../..
+    cmake --build --config ${release} . 
     Set-Location ..
 }
 

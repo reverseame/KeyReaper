@@ -52,7 +52,9 @@ std::string GetChoices(const std::map<std::string, EnumClass>& options_map, cons
 }
 
 int main(int argc, char *argv[]) {
-  CLI::App app("CRAPER: cryptographic key recovery for live processes");
+  CLI::App app("@PROGRAM_NAME@: cryptographic key recovery for live processes");
+
+  app.set_version_flag("-v,--version", "@PROGRAM_NAME@ version @PROJECT_VERSION@");
 
   // CUSTOM PARSERS
   auto actions_transformer = CLI::Transformer(actions_map, CLI::ignore_case)

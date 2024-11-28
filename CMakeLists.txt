@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_SYSTEM_NAME Windows)
-project(Craperv2)
+project(Craperv2 VERSION 1.0.1)
+set(PROGRAM_NAME "CRAPER")
 
 set(MSVC True)
 set(CMAKE_CXX_STANDARD 20)
@@ -57,13 +58,21 @@ FetchContent_MakeAvailable(cli11_proj)
 ### Binaries #############
 
 set(EXECUTABLE_NAME "craper")
+
+# Set version number
+configure_file(
+    ${SOURCE_BASE_DIR}/main.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/main.cc
+    @ONLY
+)
+
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/key.cc
     ${SOURCE_BASE_DIR}/scanners.cc
     ${SOURCE_BASE_DIR}/key_scanner.cc
     ${SOURCE_BASE_DIR}/process_capturer.cc
-    ${SOURCE_BASE_DIR}/main.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/main.cc
 )
 
 # Link nlohmann/json to your executable
