@@ -119,7 +119,7 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
     while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
       uintptr_t position = search_result - input_buffer;
       match_count++;
-      printf(" HCRYPTKEY structure found at [%p]\n", search_result);
+      printf(" HCRYPTKEY structure found at offset [0x%p]\n", (void*) (position + heap_info.GetBaseAddress()));
       // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
 
       // XOR with the magic constant
