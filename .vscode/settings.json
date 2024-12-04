@@ -82,6 +82,8 @@
         "thread": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "complex": "cpp",
+        "queue": "cpp"
     }
 }

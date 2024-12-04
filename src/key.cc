@@ -66,12 +66,12 @@ error_handling::ProgramResult Key::ExportKeyAsBinary(std::string out_file) {
   return OkResult("Successfully exported key blob to " + out_file);
 }
 
-bool Key::operator==(const Key &other) const {
+bool Key::operator==(const std::shared_ptr<Key>& other) const {
 
-  if (this->GetSize() != other.GetSize()) 
+  if (this->GetSize() != other->GetSize()) 
     return false;
 
-  return (this->GetKey() == other.GetKey());
+  return (this->GetKey() == other->GetKey());
 }
 
 std::size_t KeyType::GetSize() const {
@@ -92,8 +92,8 @@ std::string KeyType::GetAlgorithmAsString() const {
 }
 
 
-size_t Key::KeyHashFunction::operator()(const Key &key) const {
-  const vector<unsigned char> key_data = key.GetKey();
+size_t Key::KeyHashFunction::operator()(const std::shared_ptr<Key>& key) const {
+  const vector<unsigned char> key_data = key->GetKey();
   if (key_data.empty()) {
     return 0;
   }
@@ -135,7 +135,9 @@ vector<BYTE> CrAPIKeyWrapper::GetParameter(DWORD parameter) {
 }
 
 CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) {
-  switch (key_data->alg) {
+  alg_id_ = key_data->alg;
+  
+  switch (alg_id_) {
   case CALG_AES_128:
     // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
     printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
@@ -155,10 +157,10 @@ CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) 
     // specified in the constructor initialization list
     // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
     printf(" Detected Windows CryptoAPI - Key data copied.\n");
-    printf("  > ALG_ID: %X", key_data->alg);
+    printf("  > ALG_ID: %X", alg_id_);
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kUnknown));
     
-    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(key_data->alg), 0);
+    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(alg_id_), 0);
     if (poid_info != NULL) {
       wcout << " (" << poid_info->pwszName << ")" << endl;
     } else printf("\n");
@@ -182,7 +184,7 @@ bool CryptoAPIKey::IsAsymmetricAlgorithm() {
 error_handling::ProgramResult CryptoAPIKey::ExportKeyAsBinary(std::string out_file) {
   if (IsSymmetricAlgorithm()) {
     printf(" [!] Symmetric algorithm detected. Exporting the key as PLAINTEXTKEYBLOB");
-    return ExportAsBinaryGeneric(PLAINTEXTKEYBLOB, out_file);
+    return ExportAsBinaryGeneric(PLAINTEXTKEYBLOB, out_file + ".bin");
   
   } else if (IsAsymmetricAlgorithm()) {
     printf(" [!] An asymmetric key was detected. Since it's unkown whether it is the private or public pair, it will be exported in both formats");
@@ -202,7 +204,7 @@ ProgramResult CryptoAPIKey::ExportAsBinaryGeneric(BYTE blob_type, string out_fil
   header.bType = blob_type;
   header.bVersion = CUR_BLOB_VERSION;
   header.reserved = 0;
-  header.aiKeyAlg = GetALG_ID();
+  header.aiKeyAlg = alg_id_;
 
   DWORD dest_size = sizeof(BLOBHEADER) + GetSize();
 

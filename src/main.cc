@@ -159,17 +159,18 @@ int main(int argc, char *argv[]) {
     for (auto &key : keys) {
 
       cout << " Key [" << i++ << "/" << keys.size() << "]: " << endl;
-      cout << "  * Type: " << key.GetAlgorithm() << endl << "  * Size: " << key.GetSize() << " bytes" << endl << endl;
-      ProcessCapturer::PrintMemory(&key.GetKey()[0], key.GetSize());
+      cout << "  * Type: " << key->GetAlgorithm() << endl << "  * Size: " << key->GetSize() << " bytes" << endl << endl;
+      ProcessCapturer::PrintMemory(&key->GetKey()[0], key->GetSize());
 
       printf("---\n\n");
     }
 
     if (output_json != "") {
-      scanner.ExportKeysToJSON(output_json);
+      cout << scanner.ExportKeysToJSON(output_json).GetResultInformation() << std::endl;
     }
 
     if (output_binary_keys) {
+      cout << " [i] Exporting keys in binary format\n";
       cout << scanner.ExportKeysToBinary().GetResultInformation() << std::endl;
     }
   }

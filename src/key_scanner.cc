@@ -39,7 +39,7 @@ bool ScannerFacade::IsProcessAlive() const {
   return capturer_.IsProcessAlive();
 }
 
-std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> ScannerFacade::DoScan() {
   printf(" [i] Starting scan\n");
   if (scanners_.size() == 0) {
     printf(" [x] No scanner selected\n");
@@ -81,7 +81,7 @@ std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::DoScan() {
   return keys_;
 }
 
-std::unordered_set<Key, Key::KeyHashFunction> ScannerFacade::GetKeys() {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> ScannerFacade::GetKeys() {
   return keys_;
 }
 
@@ -91,7 +91,7 @@ ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
   cout << "[i] Exporting keys to " << output_json << endl;
   nlohmann::json json_data;
   for (auto &key : keys_) {
-    json_data[key.GetKeyAsString()] = { {"algorithm", key.GetAlgorithm()}, {"size", key.GetSize()} };
+    json_data[key->GetKeyAsString()] = { {"algorithm", key->GetAlgorithm()}, {"size", key->GetSize()} };
   }
 
   ofstream file(output_json);
@@ -106,8 +106,8 @@ ProgramResult ScannerFacade::ExportKeysToBinary() {
   
   size_t i = 0;
   size_t failed_exports = 0;
-  for (auto key : keys_) {
-    ProgramResult pr = key.ExportKeyAsBinary("key" + to_string(i++));
+  for (const auto& key : keys_) {
+    ProgramResult pr = key->ExportKeyAsBinary("key" + to_string(i++));
     if (pr.IsErr()) {
       cout << pr.GetResultInformation() << std::endl;
       failed_exports += 1;
@@ -126,7 +126,7 @@ void ScannerFacade::AddScanners(ScannerVector scanners) {
   scanners.clear();
 }
 
-void ScannerFacade::AddKeys(std::unordered_set<Key, Key::KeyHashFunction> keys) {
+void ScannerFacade::AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }
 

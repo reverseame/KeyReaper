@@ -107,10 +107,10 @@ class Key {
 
   virtual error_handling::ProgramResult ExportKeyAsBinary(std::string out_file);
 
-  bool operator==(const Key& other) const;
+  bool operator==(const std::shared_ptr<Key>& other) const;
 
   struct KeyHashFunction {
-    size_t operator()(const Key& key) const;
+    size_t operator()(const std::shared_ptr<Key>& key) const;
   };
 
  protected:
