@@ -136,7 +136,7 @@ std::unordered_set<Key, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char 
           printf("   * Key found at 0x%p\n", (void*) ptr);
 
           if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
-            Key key = Key(key_data_struct, (unsigned char*) ptr);
+            Key key = CryptoAPIKey(key_data_struct, (unsigned char*) ptr);
             found_keys.insert(key);
             // ProcessCapturer::PrintMemory((unsigned char*) (ptr), 16, ptr + heap_info.base_address - (ULONG_PTR) input_buffer);
 

@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
   std::vector<ScannerOptions> scanners;
   string output_json = "";
   unsigned int pid = 0;
+  bool output_binary_keys = false;
 
 
   // KEY SCANNING
@@ -91,6 +92,7 @@ int main(int argc, char *argv[]) {
     ->expected(1, -1)
     ->transform(scanners_transformer);
 
+  scan_subcommand->add_flag("--bin", output_binary_keys, "Set this flag to export all found keys in binary format. Keys are named and enumerated starting by zero");
 
   // PROCESS SUBCOMMAND
   CLI::App* process_subcommand = app.add_subcommand("proc", "For manipulating all threads of the target process");
@@ -165,6 +167,10 @@ int main(int argc, char *argv[]) {
 
     if (output_json != "") {
       scanner.ExportKeysToJSON(output_json);
+    }
+
+    if (output_binary_keys) {
+      cout << scanner.ExportKeysToBinary().GetResultInformation() << std::endl;
     }
   }
 

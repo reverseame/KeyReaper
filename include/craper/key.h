@@ -11,6 +11,8 @@
 #include <wincrypt.h>
 #include "cryptoapi.h"
 
+#include "program_result.h"
+
 namespace key_scanner {
 
 // FROM MS-LEARN
@@ -76,7 +78,7 @@ const std::unordered_map<CipherAlgorithm, std::string> cipher_to_string = {
 
 class KeyType {
  public:
-  KeyType(size_t key_size, CipherAlgorithm algorithm) : 
+  KeyType(size_t key_size, CipherAlgorithm algorithm) :
       key_size_(key_size), algorithm_(algorithm) {};
   
   size_t GetSize() const;
@@ -90,18 +92,20 @@ class KeyType {
 
 class Key {
  public:
+  Key() : cipher_type_(kError, CipherAlgorithm::kError), key_() {};
   Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key);
-  Key(cryptoapi::key_data_s* key_data, unsigned char* key);
   Key(const Key& other) :
       cipher_type_(other.cipher_type_),
       key_(other.key_ ? std::make_unique<std::vector<unsigned char>>(*other.key_) : nullptr) {}; 
   Key& operator=(const Key& other) = default;
 
-  size_t GetSize() const;
-  std::string GetAlgorithm() const;
+  size_t GetSize() const { return cipher_type_.GetSize(); };
+  std::string GetAlgorithm() const { return cipher_type_.GetAlgorithmAsString(); };
   std::string GetCipherType() const;
-  std::vector<unsigned char> GetKey() const;
-  std::string GetKeyAsString() const;
+  virtual std::vector<unsigned char> GetKey() const;
+  virtual std::string GetKeyAsString() const;
+
+  virtual error_handling::ProgramResult ExportKeyAsBinary(std::string out_file);
 
   bool operator==(const Key& other) const;
 
@@ -109,9 +113,24 @@ class Key {
     size_t operator()(const Key& key) const;
   };
 
- private:
+ protected:
+  void SetCipherType(KeyType type) { cipher_type_ = type; };
   KeyType cipher_type_;
   std::unique_ptr<std::vector<unsigned char>> key_;
+};
+
+class CryptoAPIKey : public Key {
+ public:
+  CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key);
+  ALG_ID GetALG_ID() const { return alg_id_; };
+  bool IsSymmetricAlgorithm();
+  bool IsAsymmetricAlgorithm();
+
+  error_handling::ProgramResult ExportKeyAsBinary(std::string out_file) override;
+
+ private:
+  ALG_ID alg_id_;
+  error_handling::ProgramResult ExportAsBinaryGeneric(BYTE blob_type, std::string out_file);
 };
 
 class CrAPIKeyWrapper {

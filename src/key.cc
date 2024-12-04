@@ -1,6 +1,7 @@
 #include "key.h"
 #include <new>
 #include <iostream>
+#include <fstream>
 #include <wincrypt.h>
 #include <string>
 #include <format>
@@ -8,6 +9,7 @@
 #pragma comment(lib, "Crypt32.lib") // crypto api
 
 using namespace std;
+using namespace error_handling;
 
 namespace key_scanner {
 Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
@@ -21,51 +23,6 @@ Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : ciphe
     cipher_type_ = KeyType(kError, CipherAlgorithm::kError);
     key_ = nullptr;
   }
-}
-
-Key::Key(cryptoapi::key_data_s *key_data, unsigned char* key) : 
-    cipher_type_(kError, CipherAlgorithm::kError), key_() {
-
-  switch (key_data->alg) {
-  case CALG_AES_128:
-    // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
-    printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
-    break;
-
-  case CALG_AES_256:
-    printf(" Detected Windows CryptoAPI - AES 256 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kAES);
-    break;
-  
-  case CALG_RC4:
-    printf(" Detected Windows CryptoAPI - RC4 algorithm\n");
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kRC4);
-    break;
-  default:
-    // specified in the constructor initialization list
-    // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
-    printf(" Detected Windows CryptoAPI - Key data copied.\n");
-    printf("  > ALG_ID: %X", key_data->alg);
-    cipher_type_ = KeyType(key_data->key_size, CipherAlgorithm::kUnknown);
-    
-    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(key_data->alg), 0);
-    if (poid_info != NULL) {
-      wcout << " (" << poid_info->pwszName << ")" << endl;
-    } else printf("\n");
-    
-    break;
-  }
-
-  key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
-}
-
-size_t Key::GetSize() const {
-  return cipher_type_.GetSize();
-}
-
-std::string Key::GetAlgorithm() const {
-  return cipher_type_.GetAlgorithmAsString();
 }
 
 std::string Key::GetCipherType() const {
@@ -93,13 +50,28 @@ string Key::GetKeyAsString() const {
   return key_string;
 }
 
+error_handling::ProgramResult Key::ExportKeyAsBinary(std::string out_file) { 
+  ofstream file(out_file, std::ios::binary | std::ios::out);
+  if (!file.is_open()) {
+    return ErrorResult("Failed to open file: " + out_file);
+  }
+
+  // Write to the file
+  file.write(reinterpret_cast<const char*>(GetKey().data()), GetSize());
+  if (!file.good()) {
+    return ErrorResult("Error writing to file: " + out_file);
+  }
+
+  file.close();
+  return OkResult("Successfully exported key blob to " + out_file);
+}
+
 bool Key::operator==(const Key &other) const {
 
   if (this->GetSize() != other.GetSize()) 
     return false;
 
   return (this->GetKey() == other.GetKey());
-
 }
 
 std::size_t KeyType::GetSize() const {
@@ -113,10 +85,10 @@ CipherAlgorithm KeyType::GetAlgorithm() const {
 std::string KeyType::GetAlgorithmAsString() const {
   auto algo = cipher_to_string.find(algorithm_);
   if (algo != cipher_to_string.end()) {
-        return algo->second;
-    } else {
-        return "Unknown algorithm";
-    }
+    return algo->second;
+  } else {
+    return "Unknown algorithm";
+  }
 }
 
 
@@ -160,6 +132,104 @@ vector<BYTE> CrAPIKeyWrapper::GetParameter(DWORD parameter) {
   }
 
   return data_bytes;
+}
+
+CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) {
+  switch (key_data->alg) {
+  case CALG_AES_128:
+    // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
+    printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
+    break;
+
+  case CALG_AES_256:
+    printf(" Detected Windows CryptoAPI - AES 256 algorithm\n");
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
+    break;
+  
+  case CALG_RC4:
+    printf(" Detected Windows CryptoAPI - RC4 algorithm\n");
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRC4));
+    break;
+  default:
+    // specified in the constructor initialization list
+    // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
+    printf(" Detected Windows CryptoAPI - Key data copied.\n");
+    printf("  > ALG_ID: %X", key_data->alg);
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kUnknown));
+    
+    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(key_data->alg), 0);
+    if (poid_info != NULL) {
+      wcout << " (" << poid_info->pwszName << ")" << endl;
+    } else printf("\n");
+    
+    break;
+  }
+
+  key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
+}
+
+bool CryptoAPIKey::IsSymmetricAlgorithm() {
+  return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT) ||
+         ((GetALG_ID() & ALG_CLASS_HASH) == ALG_CLASS_HASH);
+}
+
+bool CryptoAPIKey::IsAsymmetricAlgorithm() {
+  return ((GetALG_ID() & ALG_CLASS_KEY_EXCHANGE) == ALG_CLASS_KEY_EXCHANGE) ||
+         ((GetALG_ID() & ALG_CLASS_SIGNATURE) == ALG_CLASS_SIGNATURE);
+}
+
+error_handling::ProgramResult CryptoAPIKey::ExportKeyAsBinary(std::string out_file) {
+  if (IsSymmetricAlgorithm()) {
+    printf(" [!] Symmetric algorithm detected. Exporting the key as PLAINTEXTKEYBLOB");
+    return ExportAsBinaryGeneric(PLAINTEXTKEYBLOB, out_file);
+  
+  } else if (IsAsymmetricAlgorithm()) {
+    printf(" [!] An asymmetric key was detected. Since it's unkown whether it is the private or public pair, it will be exported in both formats");
+    ProgramResult pr = ExportAsBinaryGeneric(PUBLICKEYBLOB, out_file + ".PUBK");
+    if (pr.IsErr()) return pr;
+    pr = ExportAsBinaryGeneric(PRIVATEKEYBLOB, out_file + ".PRIVK");
+    if (pr.IsErr()) return pr;
+    return OkResult("Both keys successfully exported");
+  
+  } else {
+    return ErrorResult("Key type not recognized as symmetric or assymetric");
+  }
+}
+
+ProgramResult CryptoAPIKey::ExportAsBinaryGeneric(BYTE blob_type, string out_file) {
+  BLOBHEADER header;
+  header.bType = blob_type;
+  header.bVersion = CUR_BLOB_VERSION;
+  header.reserved = 0;
+  header.aiKeyAlg = GetALG_ID();
+
+  DWORD dest_size = sizeof(BLOBHEADER) + GetSize();
+
+  auto key_bytes = std::unique_ptr<BYTE[]>(new (std::nothrow) BYTE[dest_size]);
+  if (!key_bytes)
+    return ErrorResult("Could not allocate memory for the key");
+
+  if (memcpy_s(key_bytes.get(), dest_size, &header, sizeof(BLOBHEADER)) != 0) {
+    return ErrorResult("Error copying the BLOBHEADER into the allocated space");
+  }
+  if (memcpy_s(key_bytes.get() + sizeof(BLOBHEADER), dest_size - sizeof(BLOBHEADER), GetKey().data(), GetSize()) != 0) {
+    return ErrorResult("Error copying the key data into the allocated space");
+  }
+
+  ofstream file(out_file, std::ios::binary | std::ios::out);
+  if (!file.is_open()) {
+    return ErrorResult("Failed to open file: " + out_file);
+  }
+
+  // Write to the file
+  file.write(reinterpret_cast<const char *>(key_bytes.get()), dest_size);
+  if (!file.good()) {
+    return ErrorResult("Error writing to file: " + out_file);
+  }
+
+  file.close();
+  return OkResult("Successfully exported key blob to " + out_file);
 }
 
 } // namespace key_scanner

@@ -101,6 +101,23 @@ ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
   return OkResult("Exported keys to: " + output_json);
 }
 
+ProgramResult ScannerFacade::ExportKeysToBinary() {
+  ProgramResult result = OkResult("All keys were successfully exported");
+  
+  size_t i = 0;
+  size_t failed_exports = 0;
+  for (auto key : keys_) {
+    ProgramResult pr = key.ExportKeyAsBinary("key" + to_string(i++));
+    if (pr.IsErr()) {
+      cout << pr.GetResultInformation() << std::endl;
+      failed_exports += 1;
+    }
+  }
+
+  if (failed_exports > 0) result = ErrorResult(to_string(failed_exports) + " out of " + to_string(keys_.size()) + "keys failed to export");
+  return result;
+}
+
 void ScannerFacade::AddScanners(ScannerVector scanners) {
   unsigned int i = 0;
   for (auto& scanner : scanners) {
