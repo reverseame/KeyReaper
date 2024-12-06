@@ -78,9 +78,9 @@ void CryptoAPIScan::InitializeCryptoAPI() {
     }
   }
 }
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
 
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> found_keys = std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction>();
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 
   InitializeCryptoAPI();
   if (cryptoapi_functions_initialized) {
@@ -137,7 +137,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> CryptoAPIScan::Sc
 
           if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
             found_keys.insert(
-              std::make_unique<CryptoAPIKey>(
+              std::make_shared<CryptoAPIKey>(
                 CryptoAPIKey(key_data_struct, (unsigned char*) ptr)
               )
             );
@@ -171,8 +171,8 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> CryptoAPIScan::Sc
   return found_keys;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
-  return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction>();
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
+  return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 }
 
 ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners) {

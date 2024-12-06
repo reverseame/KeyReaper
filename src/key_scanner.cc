@@ -39,7 +39,7 @@ bool ScannerFacade::IsProcessAlive() const {
   return capturer_.IsProcessAlive();
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> ScannerFacade::DoScan() {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> ScannerFacade::DoScan() {
   printf(" [i] Starting scan\n");
   if (scanners_.size() == 0) {
     printf(" [x] No scanner selected\n");
@@ -81,7 +81,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> ScannerFacade::Do
   return keys_;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> ScannerFacade::GetKeys() {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> ScannerFacade::GetKeys() {
   return keys_;
 }
 
@@ -126,7 +126,7 @@ void ScannerFacade::AddScanners(ScannerVector scanners) {
   scanners.clear();
 }
 
-void ScannerFacade::AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> keys) {
+void ScannerFacade::AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }
 

@@ -66,12 +66,11 @@ error_handling::ProgramResult Key::ExportKeyAsBinary(std::string out_file) {
   return OkResult("Successfully exported key blob to " + out_file);
 }
 
-bool Key::operator==(const std::shared_ptr<Key>& other) const {
+bool Key::operator==(const Key& other) const {
+  if (this->GetAlgorithm() != other.GetAlgorithm()) return false;
+  if (this->GetSize() != other.GetSize()) return false;
 
-  if (this->GetSize() != other->GetSize()) 
-    return false;
-
-  return (this->GetKey() == other->GetKey());
+  return (this->GetKey() == other.GetKey());
 }
 
 std::size_t KeyType::GetSize() const {
@@ -93,7 +92,7 @@ std::string KeyType::GetAlgorithmAsString() const {
 
 
 size_t Key::KeyHashFunction::operator()(const std::shared_ptr<Key>& key) const {
-  const vector<unsigned char> key_data = key->GetKey();
+  const std::vector<unsigned char> key_data = key->GetKey();
   if (key_data.empty()) {
     return 0;
   }
@@ -102,7 +101,13 @@ size_t Key::KeyHashFunction::operator()(const std::shared_ptr<Key>& key) const {
   for (size_t i = 1; i < key_data.size(); ++i) {
     hash = hash ^ std::hash<unsigned char>()(key_data[i]);
   }
+
   return hash;
+}
+
+bool Key::KeyHashFunction::operator()(const std::shared_ptr<Key>& lhs, const std::shared_ptr<Key>& rhs) const {
+  if (!lhs || !rhs) return !lhs && !rhs; // Handle null pointers
+  return *lhs == *rhs;
 }
 
 
@@ -183,11 +188,11 @@ bool CryptoAPIKey::IsAsymmetricAlgorithm() {
 
 error_handling::ProgramResult CryptoAPIKey::ExportKeyAsBinary(std::string out_file) {
   if (IsSymmetricAlgorithm()) {
-    printf(" [!] Symmetric algorithm detected. Exporting the key as PLAINTEXTKEYBLOB");
+    printf(" [!] Symmetric algorithm detected. Exporting the key as PLAINTEXTKEYBLOB\n");
     return ExportAsBinaryGeneric(PLAINTEXTKEYBLOB, out_file + ".bin");
   
   } else if (IsAsymmetricAlgorithm()) {
-    printf(" [!] An asymmetric key was detected. Since it's unkown whether it is the private or public pair, it will be exported in both formats");
+    printf(" [!] An asymmetric key was detected. Since it's unkown whether it is the private or public pair, it will be exported in both formats\n");
     ProgramResult pr = ExportAsBinaryGeneric(PUBLICKEYBLOB, out_file + ".PUBK");
     if (pr.IsErr()) return pr;
     pr = ExportAsBinaryGeneric(PRIVATEKEYBLOB, out_file + ".PRIVK");

@@ -38,8 +38,8 @@ class ScannerFacade {
 
   // Query
   bool IsProcessAlive() const;
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> DoScan();
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> GetKeys();  
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> DoScan();
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> GetKeys();  
   error_handling::ProgramResult ExportKeysToJSON(std::string output_json);
   error_handling::ProgramResult ExportKeysToBinary();
 
@@ -47,11 +47,11 @@ class ScannerFacade {
   void AddScanners(ScannerVector scanners);
 
  private:
-  void AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> keys);
+  void AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> keys);
 
   process_manipulation::ProcessCapturer capturer_;
   ScannerVector scanners_;
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction> keys_;
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> keys_;
   OnDestroyAction on_destroy_;
   DWORD pid_;
 };
