@@ -177,8 +177,7 @@ CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) 
 }
 
 bool CryptoAPIKey::IsSymmetricAlgorithm() {
-  return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT) ||
-         ((GetALG_ID() & ALG_CLASS_HASH) == ALG_CLASS_HASH);
+  return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT);
 }
 
 bool CryptoAPIKey::IsAsymmetricAlgorithm() {
