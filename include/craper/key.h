@@ -78,28 +78,28 @@ const std::unordered_map<CipherAlgorithm, std::string> cipher_to_string = {
 
 class KeyType {
  public:
-  KeyType(size_t key_size, CipherAlgorithm algorithm) :
+  KeyType(DWORD key_size, CipherAlgorithm algorithm) :
       key_size_(key_size), algorithm_(algorithm) {};
   
-  size_t GetSize() const;
+  DWORD GetSize() const;
   CipherAlgorithm GetAlgorithm() const;
   std::string GetAlgorithmAsString() const;
 
  private:
-  size_t key_size_;
+  DWORD key_size_;
   CipherAlgorithm algorithm_;
 };
 
 class Key {
  public:
   Key() : cipher_type_(kError, CipherAlgorithm::kError), key_() {};
-  Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key);
+  Key(DWORD key_size, CipherAlgorithm algorithm, unsigned char* key);
   Key(const Key& other) :
       cipher_type_(other.cipher_type_),
       key_(other.key_ ? std::make_unique<std::vector<unsigned char>>(*other.key_) : nullptr) {}; 
   Key& operator=(const Key& other) = default;
 
-  size_t GetSize() const { return cipher_type_.GetSize(); };
+  DWORD GetSize() const { return cipher_type_.GetSize(); };
   std::string GetAlgorithm() const { return cipher_type_.GetAlgorithmAsString(); };
   std::string GetCipherType() const;
   virtual std::vector<unsigned char> GetKey() const;

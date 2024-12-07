@@ -12,7 +12,7 @@ using namespace std;
 using namespace error_handling;
 
 namespace key_scanner {
-Key::Key(size_t key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
+Key::Key(DWORD key_size, CipherAlgorithm algorithm, unsigned char* key) : cipher_type_(key_size, algorithm), key_() {
   
   try {
     key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + cipher_type_.GetSize()));
@@ -73,8 +73,8 @@ bool Key::operator==(const Key& other) const {
   return (this->GetKey() == other.GetKey());
 }
 
-std::size_t KeyType::GetSize() const {
-  return static_cast<std::size_t>(key_size_);
+DWORD KeyType::GetSize() const {
+  return key_size_;
 }
 
 CipherAlgorithm KeyType::GetAlgorithm() const {

@@ -36,7 +36,7 @@ if ($build -eq 0 -or $build -eq 64) {
     }
     Set-Location "build64"
     cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DCMAKE_BUILD_TYPE=$release -G "Visual Studio 17 2022" -A x64 ../..
-    cmake --build --config ${release} . 
+    cmake --build . --config ${release}
     Set-Location ..
 }
 
