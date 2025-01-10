@@ -24,7 +24,7 @@ const std::vector<std::string> cryptoapi_function_names = {
 struct key_data_s {
   void *unknown;     // +0x00
   ALG_ID alg;        // +0x04 | +0x08
-  uint32_t flags;    // +0x08 | +0x12
+  uint32_t flags;    // +0x08 | +0x0C
   uint32_t key_size; // +0x0C | +0x10
   void* key_bytes;   // +0x10 | +0x18 (padding)
   void* unk_ptr1;    // alignment for 32 and 64-bit
