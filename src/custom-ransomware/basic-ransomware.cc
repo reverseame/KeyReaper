@@ -111,7 +111,6 @@ void TryExportKey(HCRYPTKEY key_handle) {
             } printf("\n");
         }
         free(buffer);
-        printf("PAUSE ME HERE\n");
     }
 }
 
@@ -154,9 +153,8 @@ void GetAllBlockCipherParameters(HCRYPTKEY key) {
             for (UINT j = 0; j < len; j++) {
                 printf("%02X ", buffer[j]);
             } printf("\n");
-        } 
-
-        getchar();   
+        }
+        // getchar();   
     }
 }
 
@@ -176,7 +174,7 @@ BOOL GenerateKeyWithIV(HCRYPTPROV provider) {
     printf("[i] Generating a key\n");
     result = CryptGenKey(
         provider,
-        CALG_RC2,
+        CALG_AES_128,
         0, &key
     );
 
