@@ -23,6 +23,9 @@ namespace fs = filesystem;
 #define IN_CHUNK_SIZE (AES_KEY_SIZE * 10) // a buffer must be a multiple of the key size
 #define OUT_CHUNK_SIZE (IN_CHUNK_SIZE * 2) // an output buffer (for encryption) must be twice as big
 
+// Header
+void PrintKeyData(HCRYPTKEY hKey);
+
 #include <tlhelp32.h>
 int PrintHeapInformation() {
   printf("Getting heap\n");
@@ -108,6 +111,7 @@ void TryExportKey(HCRYPTKEY key_handle) {
             } printf("\n");
         }
         free(buffer);
+        printf("PAUSE ME HERE\n");
     }
 }
 
@@ -128,6 +132,79 @@ void PrintKeyParameters(HCRYPTKEY key_handle) {
     for (auto byte : key_wrapper.GetMode()) {
         printf(" %02X", byte);
     } printf("\n");
+}
+
+void GetAllBlockCipherParameters(HCRYPTKEY key) {
+    BOOL result;
+
+    const char* parameter_list_str[] = {"KP_ALGID", "KP_BLOCKLEN", "KP_CERTIFICATE", "KP_KEYLEN", "KP_SALT", "KP_PERMISSIONS", "KP_EFFECTIVE_KEYLEN", "KP_IV", "KP_PADDING", "KP_MODE", "KP_MODE_BITS"};
+    DWORD parameter_list[] = {KP_ALGID, KP_BLOCKLEN, KP_CERTIFICATE, KP_KEYLEN, KP_SALT, KP_PERMISSIONS, KP_EFFECTIVE_KEYLEN, KP_IV, KP_PADDING, KP_MODE, KP_MODE_BITS};
+
+    BYTE buffer[256];
+    DWORD len = 256;
+
+    for (unsigned int i = 0; i < size(parameter_list); i++) {
+        ZeroMemory(buffer, 256); len = 256;
+        printf("[%u] Getting %s\n", i, parameter_list_str[i]);
+        result = CryptGetKeyParam(key, parameter_list[i], buffer, &len, 0);
+        if (result == 0) {
+            printf("Last error: %u\n", GetLastError());
+        } else {
+            printf("Parameter length: %u\n", len);
+            for (UINT j = 0; j < len; j++) {
+                printf("%02X ", buffer[j]);
+            } printf("\n");
+        } 
+
+        getchar();   
+    }
+}
+
+BOOL GenerateKeyWithIV(HCRYPTPROV provider) {
+    HCRYPTKEY key;
+    // IV must be the block length in bits divided by 8,
+    //  and the result must be in bytes.
+    // AES has a 128 bit block length, therefore:
+    //   128b / 8 = 16B of IV
+    const BYTE iv[] = { 0x41, 0x42, 0x43, 0x44,
+                        0x45, 0x46, 0x47, 0x48,
+                        0x49, 0x50, 0x51, 0x52,
+                        0x53, 0x54, 0x55, 0x56
+                        };
+    BOOL result;
+
+    printf("[i] Generating a key\n");
+    result = CryptGenKey(
+        provider,
+        CALG_RC2,
+        0, &key
+    );
+
+    if (result == 0) {
+        printf("[x] Failed to generate a key\n");
+        return false;
+    } printf("Key handle: %p\n", (void*) key);
+
+    result = CryptSetKeyParam(key, KP_IV, iv, 0);
+    if (result == 0) {
+        printf("[x] Failed to set key parameter\n");
+    }
+
+    DWORD mode = CRYPT_MODE_CFB;
+    result = CryptSetKeyParam(key, KP_MODE, (BYTE*) &mode, 0);
+    if (result == 0) {
+        printf("[x] Failed to set the mode of operation of the block cipher\n");
+    }
+
+    DWORD blocklen = 0; DWORD param_len = sizeof(DWORD);
+    result = CryptGetKeyParam(key, KP_BLOCKLEN, (BYTE*) &blocklen, &param_len, 0);
+    printf("Blocklen: %u\n", blocklen);
+    // GetAllBlockCipherParameters(key);
+
+    PrintKeyData(key);
+    printf("[i] Destroying key\n");
+    CryptDestroyKey(key);
+    return true;
 }
 
 vector<string> retrieveTextFiles(const wstring& folderPath) {
@@ -175,11 +252,18 @@ void PrintKeyData(HCRYPTKEY hKey) {
     cryptoapi::key_data_s* key_data = (cryptoapi::key_data_s*) ms->key_data;
 
     printf("\nKEY STRUCTURE [@ %p]\n", (void*) key_data);
-    printf("Unknown ptr:    %p\n", key_data->unknown);
-    printf("Algorithm:      %08X\n", key_data->alg);
-    printf("Flags:          %08X\n", key_data->flags);
-    printf("Key size:       %08X\n", key_data->key_size);
-    printf("Key ptr:        %p\n", key_data->key_bytes);
+    printf("Unknown ptr:     %p\n", key_data->unknown);
+    printf("Algorithm:       %08X\n", key_data->alg);
+    printf("Flags:           %08X\n", key_data->flags);
+    printf("Key size:        %08X\n", key_data->key_size);
+    printf("Key ptr:         %p\n", key_data->key_bytes);
+    printf("Key block len:   %08X\n", key_data->block_len);
+    printf("Key cipher mode: %08X\n", key_data->cipher_mode);
+    printf("Base IV:         %p\n", key_data->iv);
+    
+    for (UINT i = 0; i < key_data->block_len; i++) {
+        printf("%02X ", key_data->iv[i]);
+    } printf("\n");
     PrintKeyParameters(hKey);
 
     char* key_bytes = (char*) key_data->key_bytes;
@@ -240,6 +324,8 @@ int main(int argc, char* argv[]) {
         system("pause");
         return dwStatus;
     }
+
+    GenerateKeyWithIV(phProv);
 
     // create a hash object from the CSP (cryptographic service provider)
     HCRYPTHASH hHash;

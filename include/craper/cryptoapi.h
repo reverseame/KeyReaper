@@ -22,11 +22,17 @@ const std::vector<std::string> cryptoapi_function_names = {
 };
 
 struct key_data_s {
-  void *unknown; // XOR-ed
-  ALG_ID alg;
-  uint32_t flags;
-  uint32_t key_size;
-  void* key_bytes;
+  void *unknown;     // +0x00
+  ALG_ID alg;        // +0x04
+  uint32_t flags;    // +0x08
+  uint32_t key_size; // +0x0C
+  void* key_bytes;   // +0x10
+  BYTE unk1[0x10];
+  BYTE iv[0x10];     // +0x24
+  BYTE unk2[0x34];
+  DWORD cipher_mode; // +0x68
+  BYTE unk3[0x14];
+  DWORD block_len;   // +0x80
 };
 
 struct magic_s {
