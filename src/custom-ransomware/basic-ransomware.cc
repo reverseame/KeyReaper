@@ -13,6 +13,7 @@
 
 #include "cryptoapi.h"
 #include "key.h"
+#include "program_result.h"
 using namespace key_scanner;
 
 using namespace std;
@@ -68,6 +69,55 @@ int PrintHeapInformation() {
   CloseHandle(hHeapSnap);
   printf("Self PID: %u\n", pid);
   return func_result;
+}
+
+cryptoapi::key_data_s* GetKeyStruct(HCRYPTKEY key) {
+    cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) key;
+    UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
+    magic_xor = magic_xor ^ MAGIC_CONSTANT;
+    cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
+    return (cryptoapi::key_data_s*) ms->key_data;
+}
+
+void CheckAllBlockSizes(HCRYPTPROV prov) {
+    SIZE_T biggest_block_len = 0;
+    ALG_ID to_check_algs[] = {CALG_DES, CALG_RC2, CALG_3DES, CALG_3DES_112, CALG_DESX, CALG_AES_128, CALG_AES_192, CALG_AES_256, CALG_AES, CALG_SKIPJACK, CALG_TEK, CALG_CYLINK_MEK};
+    HCRYPTKEY key;
+    BOOL result;
+    DWORD block_size;
+    BYTE data[256];
+    DWORD data_len;
+    cryptoapi::key_data_s* key_data;
+
+    for (ALG_ID alg : to_check_algs) {
+        printf("Generating a key with ALG_ID: %04X\n", alg);
+        result = CryptGenKey(prov, alg, 0, &key);
+        if (result == 0) {
+            printf(" [x] Error generating key. Error: %u\n", GetLastError());
+            cout << "  \\Last error: " <<  error_handling::GetLastErrorAsString() << endl;
+        
+        } else {
+            key_data = GetKeyStruct(key);
+            // PrintKeyData(key);
+
+            printf(" Shadow BLOCK len is %u\n", key_data->block_len);
+            if (key_data->block_len != 0) {
+                data_len = 256;
+                result = CryptGetKeyParam(key, KP_IV, data, &data_len, 0);
+                if (result == 0) printf(" [i] Seems that the ALG does not have an IV.\n");
+                else printf(" [i] The ALG seems to be using an IV\n");
+
+                data_len = sizeof(DWORD);
+                result = CryptGetKeyParam(key, KP_BLOCKLEN, (BYTE*) &block_size, &data_len, 0);
+
+                if (result == 0) printf(" [x] Error retrieving the block length\n");
+                else printf("  * BLOCKLEN: %u\n", block_size);
+
+            } else printf(" [i] Probably not using IV\n");
+            
+            CryptDestroyKey(key);
+        } printf("\n");
+    }
 }
 
 #include "program_result.h"
@@ -205,6 +255,45 @@ BOOL GenerateKeyWithIV(HCRYPTPROV provider) {
     return true;
 }
 
+void GenerateKeyChunck(HCRYPTPROV provider) {
+    HCRYPTKEY key;
+    BOOL result;
+    BYTE buffer[1024];
+    DWORD data_len;
+
+
+    for (UINT u = 0; u < 10; u++) {
+        result = CryptGenKey(provider, CALG_AES_128, CRYPT_EXPORTABLE, &key);
+        if (result == 0) printf(" [x] Failed to generate key\n");
+        else {
+            data_len = 1024;
+            result = CryptExportKey(key, NULL, PLAINTEXTKEYBLOB, 0, buffer, &data_len);
+            if (result == 0) printf(" [x] Could not export the key\n");
+            else {
+                cryptoapi::key_data_s* cryptkey = GetKeyStruct(key);
+                BYTE* raw_key = (BYTE*) cryptkey->key_bytes;
+                printf(" - KEY BYTES: 0x%p\n", raw_key);
+
+                if (cryptkey->key_size != data_len - 12) {
+                    printf(" [x] Key size mismatch\n");
+                    continue;
+                }
+
+                printf(" --- RAW KEY: \n");
+                for (UINT w = 0; w < cryptkey->key_size; w++) {
+                    printf(" %02X", buffer[w+12]);
+                    if (buffer[w+12] != raw_key[w]) {
+                        printf("\n [x] Keys mismatch\n");
+                        continue;
+                    }
+                } printf("\n");
+                printf("Keys match\n");
+            }
+        } printf("\n");
+    }
+    getchar();
+}
+
 vector<string> retrieveTextFiles(const wstring& folderPath) {
     vector<string> fileNames;
     for (const auto& entry : fs::directory_iterator(folderPath)) {
@@ -323,7 +412,9 @@ int main(int argc, char* argv[]) {
         return dwStatus;
     }
 
-    GenerateKeyWithIV(phProv);
+    // CheckAllBlockSizes(phProv);
+    // GenerateKeyWithIV(phProv);
+    GenerateKeyChunck(phProv);
 
     // create a hash object from the CSP (cryptographic service provider)
     HCRYPTHASH hHash;
