@@ -78,8 +78,7 @@ void CryptoAPIScan::InitializeCryptoAPI() {
     }
   }
 }
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info) const {
-
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, DWORD pid) const {
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 
   InitializeCryptoAPI();
@@ -96,9 +95,9 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     // Copy the pattern to a buffer
     uintptr_t pos = 0;
     size_t pattern_size = cryptoapi_functions.size() * sizeof(void*);
-    unsigned char* byte_pattern = (unsigned char*) malloc(pattern_size);
+    vector<BYTE> byte_pattern = vector<BYTE>(pattern_size);
     for (auto& offset : cryptoapi_functions) {
-      memcpy(byte_pattern + pos, &offset, sizeof(void*));
+      memcpy(byte_pattern.data() + pos, &offset, sizeof(void*));
       pos += sizeof(void*);
     }
 
@@ -109,11 +108,13 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     } printf("\n");
     */
 
-    auto searcher = boyer_moore_horspool_searcher(byte_pattern, byte_pattern + pattern_size);
+    auto searcher = boyer_moore_horspool_searcher(byte_pattern.data(), byte_pattern.data() + pattern_size);
 
     size_t match_count = 0;
     unsigned char* search_start = input_buffer;
     unsigned char* search_result;
+
+    ProcessCapturer mem_copier = ProcessCapturer(pid); // until I get a proper copy of the top chunk
 
     // While there are matches left
     while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
@@ -123,36 +124,76 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
       // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
 
       // XOR with the magic constant
+      SIZE_T data_read = 0;
+      auto buffer = vector<BYTE>();
+      auto raw_key = vector<BYTE>();
+
       cryptoapi::HCRYPTKEY* h_crypt_key = reinterpret_cast<cryptoapi::HCRYPTKEY*>(search_result);
       ULONG_PTR unk_struct = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
 
-      if (heap_info.RebaseAddress(&unk_struct, (ULONG_PTR) input_buffer)) {
-        cryptoapi::magic_s* magic_struct_ptr = (cryptoapi::magic_s*) unk_struct;
-        ULONG_PTR ptr = (ULONG_PTR) magic_struct_ptr->key_data;
-        // ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
-        if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
-          cryptoapi::key_data_s* key_data_struct = (cryptoapi::key_data_s*) ptr;
-          ptr = (ULONG_PTR) key_data_struct->key_bytes;
-          printf("   * Key found at 0x%p\n", (void*) ptr);
+      cryptoapi::magic_s* magic_struct_ptr = NULL;
 
-          if (heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
-            found_keys.insert(
-              std::make_shared<CryptoAPIKey>(
-                CryptoAPIKey(key_data_struct, (unsigned char*) ptr)
-              )
-            );
-            // ProcessCapturer::PrintMemory((unsigned char*) (ptr), 16, ptr + heap_info.base_address - (ULONG_PTR) input_buffer);
+      if (!heap_info.RebaseAddress(&unk_struct, (ULONG_PTR) input_buffer)) {
+        printf(" Magic struct address [0x%p] is outside of the heap dump, trying a manual copy\n", (void*) unk_struct);
+        buffer.resize(sizeof(cryptoapi::magic_s), 0);
 
-          } else {
-            printf(" Key [0x%p] is out of this heap\n", (void*) ptr);
-            printf("  > ALG_ID: %X\n", key_data_struct->alg);
-          }
+        error_handling::ProgramResult res = mem_copier.GetMemoryChunk((BYTE*) unk_struct, sizeof(cryptoapi::magic_s), buffer.data(), &data_read);
+        if (res.IsOk() && data_read == sizeof(cryptoapi::magic_s)) {
+          magic_struct_ptr = (cryptoapi::magic_s*) buffer.data();
+        
         } else {
-          printf(" Key data [0x%p] is out of this heap\n", magic_struct_ptr->key_data);
+          printf(" A LA MIERDA\n");
+          search_start = search_result + pattern_size;
+          continue;
         }
       } else {
-        printf(" Magic struct address [0x%p] is out of this heap\n", (void*) unk_struct);
+        magic_struct_ptr = (cryptoapi::magic_s*) unk_struct;
       }
+
+      ULONG_PTR ptr = (ULONG_PTR) magic_struct_ptr->key_data;
+      // ProcessCapturer::PrintMemory((unsigned char*) magic_struct_ptr, 16);
+
+      cryptoapi::key_data_s* key_data_struct = NULL;
+      if (!heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
+        printf(" Key data [0x%p] is out of this heap, trying a manual copy\n", magic_struct_ptr->key_data);
+        buffer.resize(sizeof(cryptoapi::key_data_s), 0);
+
+        error_handling::ProgramResult res = mem_copier.GetMemoryChunk((BYTE*) ptr, sizeof(cryptoapi::key_data_s), buffer.data(), &data_read);
+        if (res.IsOk() && data_read == sizeof(cryptoapi::key_data_s)) {
+          key_data_struct = (cryptoapi::key_data_s*) buffer.data();
+        } else {
+          printf(" A LA MIERDA 2\n");
+          search_start = search_result + pattern_size;
+          continue;
+        }
+
+      } else {
+        key_data_struct = (cryptoapi::key_data_s*) ptr;
+      }
+
+      ptr = (ULONG_PTR) key_data_struct->key_bytes;
+      printf("   * Key found at 0x%p\n", (void*) ptr);
+
+      if (!heap_info.RebaseAddress(&ptr, (ULONG_PTR) input_buffer)) {
+        printf(" Key [0x%p] is out of this heap, trying a manual copy\n", (void*) ptr);
+        raw_key.resize(key_data_struct->key_size, '\0');
+
+        error_handling::ProgramResult res = mem_copier.GetMemoryChunk((BYTE*) key_data_struct->key_bytes, key_data_struct->key_size, raw_key.data(), &data_read);
+        if (res.IsOk() && data_read == key_data_struct->key_size) {
+          ptr = (ULONG_PTR) raw_key.data();
+        } else {
+          printf(" A LA MIERDA 3\n");
+          search_start = search_result + pattern_size;
+          continue;
+        }
+      }
+
+      ProcessCapturer::PrintMemory((unsigned char*) ptr, 16, (ULONG_PTR) key_data_struct->key_bytes);
+      found_keys.insert(
+        std::make_shared<CryptoAPIKey>(
+          CryptoAPIKey(key_data_struct, (unsigned char*) ptr)
+        )
+      );
 
       search_start = search_result + pattern_size;
       printf(" --\n");
@@ -162,8 +203,6 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
       printf("Pattern not found\n");
     }
 
-    free(byte_pattern);
-
   } else {
     printf("Could not load initialize necessary CryptoAPI functions\n");
   }
@@ -171,7 +210,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   return found_keys;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info) const {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, DWORD _pid) const {
   return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 }
 

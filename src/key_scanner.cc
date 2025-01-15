@@ -73,7 +73,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     cout << "Number of scanners: " << scanners_.size() << endl;
     for (const auto& scanner : scanners_) {
       cout << " [" << scanner_count << "/" << total_scanners << "] Scanning with: " << scanner->GetName() << endl;
-      AddKeys(scanner->Scan(buffer, heap));
+      AddKeys(scanner->Scan(buffer, heap, pid_));
     }
   }
 

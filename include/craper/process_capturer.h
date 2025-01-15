@@ -213,6 +213,7 @@ class ProcessCapturer {
    * Function for initializing dynamically imported functions, such as `NtSuspendProcess`.
    */
   error_handling::ProgramResult InitializeExports();
+  void InspectMemoryRegions();
 
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;
   DWORD pid_;

@@ -147,9 +147,9 @@ bool HeapInformation::IsBlockInHeap(BlockInformation block) const {
 bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const {
   if (!IsAddressInHeap(*pointer)) {
     
-    printf(" > Pointer: %p\n", (void*) *pointer);
-    printf(" > Final:   %p\n", (void*) GetLastAddress());
-    printf(" > Base:    %p\n", (void*) GetBaseAddress());
+    // printf(" > Pointer: %p\n", (void*) *pointer);
+    // printf(" > Final:   %p\n", (void*) GetLastAddress());
+    // printf(" > Base:    %p\n", (void*) GetBaseAddress());
     
     return false;
   
@@ -459,14 +459,39 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     }
   }
 
-  printf("Buffer size: %+10zu\n", size);
-  printf("Bytes read:  %+10zu\n", *bytes_read);
+  // printf("  > COPY: [0x%p-0x%08X]\n", start, (ULONG_PTR) start + size - 1);
   CloseHandle(process_handle);
   return func_result;
 }
 
 
+void ProcessCapturer::InspectMemoryRegions() {
+  MEMORY_BASIC_INFORMATION mbi;
+  LPVOID address = 0;
+  HANDLE proc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid_);
+  if (proc == NULL) {
+    printf(" [x] Could not open a HANDLE to the process.\n");
+    return;
+  }
+
+  while (VirtualQueryEx(proc, address, &mbi, sizeof(mbi))) {
+    printf("Base Address: 0x%p | Size: 0x%lx | State: 0x%x | Protect: 0x%x\n",
+            mbi.BaseAddress, mbi.RegionSize, mbi.State, mbi.Protect);
+
+    if (mbi.State == MEM_COMMIT && (mbi.Protect & PAGE_READWRITE)) {
+      printf(" --> This region is readable.\n");
+    }
+
+    address = (LPBYTE) mbi.BaseAddress + mbi.RegionSize;
+  }
+}
+
+
 ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heaps) {
+  // printf("Getting an overview of the memory regions:\n");
+  // InspectMemoryRegions();
+  // printf("========================\n\n");
+  
   printf("Getting and coalescing heaps\n");
 
   HEAPLIST32 hl;
@@ -499,9 +524,7 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
           }
           he.dwSize = sizeof(HEAPENTRY32);
         } while ( Heap32Next(&he) );
-
-        // Order does not matter, since the reconstruction adjusts the position accordingly
-        // sort(heap_data.blocks_.begin(), heap_data.blocks_.end());
+        // TODO: read as many bytes as possible from the top chunk
 
         // Add the enumerated heap to the list
         heaps->push_back(heap_data);

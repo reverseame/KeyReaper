@@ -14,16 +14,20 @@ namespace key_scanner {
 class ScanStrategy {
  public:
   virtual ~ScanStrategy() = default;
-  virtual std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const = 0;
+  virtual std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info, DWORD pid) const = 0;
 
   // iostream output
   virtual std::string GetName() const { return "Unnamed scanner"; };
+
+ protected:
+  void SetPid(DWORD pid) { pid_ = pid; };
+  DWORD pid_;
 };
 
 class CryptoAPIScan : public ScanStrategy {
  public:
   CryptoAPIScan() = default;
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info, DWORD pid) const override;
 
   static void InitializeCryptoAPI();
   std::string GetName() const override { return "CryptoAPI Key Scanner"; };
@@ -37,7 +41,7 @@ class CryptoAPIScan : public ScanStrategy {
 class RoundKeyScan : public ScanStrategy {
  public:
   RoundKeyScan() = default;
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info) const override;
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info, DWORD pid) const override;
 
   std::string GetName() const override { return "AES Round Key Scanner"; };
 };
