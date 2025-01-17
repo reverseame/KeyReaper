@@ -445,6 +445,8 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
+  if (size == 0) return ErrorResult("Empty copy requested");
+
   ProgramResult func_result = OkResult("Data copied");
 
   *bytes_read = !NULL; // don't init at zero (NULL), otherwise the call won't (over)write this variable with the number of bytes read
@@ -459,7 +461,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     }
   }
 
-  // printf("  > COPY: [0x%p-0x%08X]\n", start, (ULONG_PTR) start + size - 1);
+  printf("  > COPY: [0x%p-0x%08X]\n", start, (ULONG_PTR) start + size - 1);
   CloseHandle(process_handle);
   return func_result;
 }

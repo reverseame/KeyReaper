@@ -120,7 +120,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
       uintptr_t position = search_result - input_buffer;
       match_count++;
-      printf(" HCRYPTKEY structure found at offset [0x%p]\n", (void*) (position + heap_info.GetBaseAddress()));
+      printf(" [%zu] HCRYPTKEY structure found at offset [0x%p]\n", match_count, (void*) (position + heap_info.GetBaseAddress()));
       // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
 
       // XOR with the magic constant
@@ -142,7 +142,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
           magic_struct_ptr = (cryptoapi::magic_s*) buffer.data();
         
         } else {
-          printf(" A LA MIERDA\n");
+          cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
           search_start = search_result + pattern_size;
           continue;
         }
@@ -162,7 +162,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
         if (res.IsOk() && data_read == sizeof(cryptoapi::key_data_s)) {
           key_data_struct = (cryptoapi::key_data_s*) buffer.data();
         } else {
-          printf(" A LA MIERDA 2\n");
+          cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
           search_start = search_result + pattern_size;
           continue;
         }
@@ -182,7 +182,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
         if (res.IsOk() && data_read == key_data_struct->key_size) {
           ptr = (ULONG_PTR) raw_key.data();
         } else {
-          printf(" A LA MIERDA 3\n");
+          cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
           search_start = search_result + pattern_size;
           continue;
         }
@@ -201,7 +201,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
 
     if (match_count == 0) {
       printf("Pattern not found\n");
-    }
+    } else printf("A total of %zu matches were found.\n", match_count);
 
   } else {
     printf("Could not load initialize necessary CryptoAPI functions\n");
