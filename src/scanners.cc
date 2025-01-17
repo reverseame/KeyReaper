@@ -1,5 +1,6 @@
 #include <memory>
 #include <windows.h>
+#include <winternl.h>
 #include <functional>
 #include <algorithm>
 #include <iostream>
@@ -78,6 +79,102 @@ void CryptoAPIScan::InitializeCryptoAPI() {
     }
   }
 }
+
+// KEY MANUAL EXTRACTION TEST
+typedef NTSTATUS (NTAPI *PFN_NTDEVICEIOCONTROLFILE)(
+  HANDLE FileHandle,
+  HANDLE Event,
+  PIO_APC_ROUTINE ApcRoutine,
+  PVOID ApcContext,
+  PIO_STATUS_BLOCK IoStatusBlock,
+  ULONG IoControlCode,
+  PVOID InputBuffer,
+  ULONG InputBufferLength,
+  PVOID OutputBuffer,
+  ULONG OutputBufferLength
+);
+
+void GetPrivateRSAPair(unsigned char* input_buffer, HeapInformation heap_info) {
+/*
+  1. Search for "RSA2" and copy the bytes
+  2. Perform the same call as the CryptoAPI 
+  */
+ HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+  if (!hNtdll) {
+    printf("Failed to get handle to ntdll.dll\n");
+    return;
+  }
+
+  // Get the address of NtDeviceIoControlFile
+  PFN_NTDEVICEIOCONTROLFILE NtDeviceIoControlFile =
+    (PFN_NTDEVICEIOCONTROLFILE)GetProcAddress(hNtdll, "NtDeviceIoControlFile");
+  if (!NtDeviceIoControlFile) {
+    printf("Failed to get address of NtDeviceIoControlFile\n");
+    return;
+  }
+  BYTE rsa2_pattern[] = { 
+    'R', 'S', 'A', '2'
+  };
+  SIZE_T pattern_size = 4;
+  SIZE_T rsa2_size = 0x2BC;
+  auto rsa2_searcher = boyer_moore_horspool_searcher(rsa2_pattern, rsa2_pattern + pattern_size);
+  
+  size_t matches = 0;
+  unsigned char* search_start = input_buffer;
+  unsigned char* search_result;
+  while((search_result = search(search_start, input_buffer + heap_info.GetSize(), rsa2_searcher)) != input_buffer + heap_info.GetSize()) {
+    matches++;
+    uintptr_t position = search_result - input_buffer;
+    printf("[%zu] RSA2 shadow found [0x%p]\n", matches, position);
+    ProcessCapturer::PrintMemory(search_result, rsa2_size, 0);
+
+    search_start = search_result + pattern_size;
+    getchar();
+  }
+  if (matches == 0) printf("No matches found\n");
+
+  HANDLE hSourceProcess = OpenProcess(PROCESS_DUP_HANDLE, FALSE, 7892);
+if (!hSourceProcess) {
+  printf("Failed to open source process: %lu\n", GetLastError());
+  return;
+}
+
+HANDLE hTargetProcess = GetCurrentProcess(); // Duplicate into the current process
+HANDLE hDuplicatedHandle;
+
+if (DuplicateHandle(
+  hSourceProcess,      // Source process
+  (HANDLE) 0x12C,  // Handle to duplicate
+  hTargetProcess,      // Target process
+  &hDuplicatedHandle,  // New handle
+  0,                   // Access rights (0 = same as source)
+  FALSE,               // Not inheritable
+  DUPLICATE_SAME_ACCESS)) { // Same access rights
+  printf("Successfully duplicated handle\n");
+} else {
+  printf("Failed to duplicate handle: %lu\n", GetLastError());
+}
+
+CloseHandle(hSourceProcess);
+
+  IO_STATUS_BLOCK status_block;
+  NTSTATUS res = NtDeviceIoControlFile(
+    hDuplicatedHandle,
+    0,
+    0,
+    0,
+    &status_block,
+    0x390012,
+    search_result,
+    rsa2_size,
+    search_result,
+    rsa2_size
+  );
+  printf("0x%X\n", res);
+  ProcessCapturer::PrintMemory(search_result, rsa2_size, 0);
+  getchar();
+}
+
 std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, DWORD pid) const {
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 
@@ -107,6 +204,8 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
       if (i % 16 == 15) { printf("\n"); }
     } printf("\n");
     */
+
+   // GetPrivateRSAPair(input_buffer, heap_info);
 
     auto searcher = boyer_moore_horspool_searcher(byte_pattern.data(), byte_pattern.data() + pattern_size);
 
