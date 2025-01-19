@@ -159,6 +159,7 @@ class ProcessCapturer {
    * @param bytes_read Output variable, will hold the number of bytes read 
    */
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
+  void WriteBufferToFile(unsigned char* buffer, SIZE_T size, std::string file_name);
 
   error_handling::ProgramResult EnumerateHeaps(std::vector<HeapInformation>* heaps);
 

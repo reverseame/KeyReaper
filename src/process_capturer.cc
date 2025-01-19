@@ -488,6 +488,13 @@ void ProcessCapturer::InspectMemoryRegions() {
   }
 }
 
+void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, string file_name) {
+  FILE* file = fopen(file_name.c_str(), "wb");
+  fwrite(buffer, 1, size, file);
+  fclose(file);
+  ProcessCapturer::PrintMemory(buffer, size);
+  getchar();
+}
 
 ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heaps) {
   // printf("Getting an overview of the memory regions:\n");
