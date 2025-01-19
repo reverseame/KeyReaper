@@ -492,8 +492,7 @@ void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, stri
   FILE* file = fopen(file_name.c_str(), "wb");
   fwrite(buffer, 1, size, file);
   fclose(file);
-  ProcessCapturer::PrintMemory(buffer, size);
-  getchar();
+  // ProcessCapturer::PrintMemory(buffer, size);
 }
 
 ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heaps) {
