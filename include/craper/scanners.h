@@ -30,6 +30,8 @@ class CryptoAPIScan : public ScanStrategy {
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info, DWORD pid) const override;
 
   static void InitializeCryptoAPI();
+  static std::vector<BYTE> GetCryptoAPIFunctions();
+  static std::unordered_set<HCRYPTKEY> GetHCRYPTKEYs(unsigned char* input_buffer, process_manipulation::HeapInformation heap_info);
   std::string GetName() const override { return "CryptoAPI Key Scanner"; };
 
  private:

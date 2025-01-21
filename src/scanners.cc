@@ -80,6 +80,59 @@ void CryptoAPIScan::InitializeCryptoAPI() {
   }
 }
 
+unordered_set<HCRYPTKEY> CryptoAPIScan::GetHCRYPTKEYs(unsigned char *input_buffer, process_manipulation::HeapInformation heap_info) {
+  auto found_hcryptkeys = unordered_set<HCRYPTKEY>();
+
+  InitializeCryptoAPI();
+  if (cryptoapi_functions_initialized) {
+
+    printf(" rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
+
+    vector<BYTE> byte_pattern = GetCryptoAPIFunctions();
+    auto searcher = boyer_moore_horspool_searcher(byte_pattern.data(), byte_pattern.data() + byte_pattern.size());
+
+    size_t match_count = 0;
+    unsigned char* search_start = input_buffer;
+    unsigned char* search_result;
+
+    // While there are matches left
+    while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
+      uintptr_t position = search_result - input_buffer;
+      match_count++;
+      printf(" [%zu] HCRYPTKEY structure found at offset [0x%p]\n", match_count, (void*) (position + heap_info.GetBaseAddress()));
+
+      HCRYPTKEY key = heap_info.GetBaseAddress() + position;
+      found_hcryptkeys.insert(key);
+
+      search_start = search_result + byte_pattern.size();
+      printf(" --\n");
+    }
+
+    if (match_count == 0) {
+      printf("Pattern not found\n");
+    } else printf("A total of %zu matches were found.\n", match_count);
+
+  } else {
+    printf("Could not load initialize necessary CryptoAPI functions\n");
+  }
+
+  return found_hcryptkeys;
+}
+
+vector<BYTE> CryptoAPIScan::GetCryptoAPIFunctions() {
+  if (!cryptoapi_functions_initialized) return vector<BYTE>();
+
+  uintptr_t pos = 0;
+  size_t pattern_size = cryptoapi_functions.size() * sizeof(void*);
+  vector<BYTE> byte_pattern = vector<BYTE>(pattern_size);
+  for (auto& offset : cryptoapi_functions) {
+    memcpy(byte_pattern.data() + pos, &offset, sizeof(void*));
+    pos += sizeof(void*);
+  }
+
+  return byte_pattern;
+}
+
 // KEY MANUAL EXTRACTION TEST
 typedef NTSTATUS (NTAPI *PFN_NTDEVICEIOCONTROLFILE)(
   HANDLE FileHandle,
@@ -175,39 +228,57 @@ CloseHandle(hSourceProcess);
   getchar();
 }
 
+void SendKeyHandleToMailSlot(HCRYPTKEY key) {
+  printf("Sending key over the MailSlot. Data size: %u\n", sizeof(HCRYPTKEY));
+  LPCSTR slotName = "\\\\.\\mailslot\\MyMailslot";
+
+  // Open the mailslot
+  HANDLE hMailslot = CreateFileA(slotName, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (hMailslot == INVALID_HANDLE_VALUE) {
+    std::cerr << "Failed to open mailslot. Error: " << error_handling::GetLastErrorAsString() << std::endl;
+    return;
+  }
+  DWORD bytesWritten;
+
+  BYTE* buffer = (BYTE*) &key;
+  printf("BUFFER: \n");
+  ProcessCapturer::PrintMemory(buffer, 4);
+  printf("\n");
+  // Write to the mailslot
+  if (WriteFile(hMailslot, buffer, sizeof(HCRYPTKEY), &bytesWritten, NULL)) {
+    std::cout << "Successfully wrote " << bytesWritten << " bytes to the mailslot." << std::endl;
+  } else {
+    std::cerr << "Failed to write to the mailslot. Error: " << error_handling::GetLastErrorAsString() << std::endl;
+  }
+
+  // Close the handle
+  CloseHandle(hMailslot);
+}
+
+void InjectExtractKeys(unordered_set<HCRYPTKEY> key_handles) {
+  for (auto key : key_handles) {
+    SendKeyHandleToMailSlot(key);
+  }
+}
+
 std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, DWORD pid) const {
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+
+  // TEST
+  /*{
+    auto key_handles = GetHCRYPTKEYs(input_buffer, heap_info);
+    InjectExtractKeys(key_handles);
+  }*/
 
   InitializeCryptoAPI();
   if (cryptoapi_functions_initialized) {
 
     printf(" rsaenh.dll 0x%p\n", (void*) cryptoapi_base_address);
 
-    /* [OLD] PRECOMPUTED OFFSETS
-    vector<uintptr_t> local_offsets = cryptoapi::cryptoapi_offsets;
-    for (auto &offset : local_offsets) {
-      offset += (uintptr_t) cryptoapi_base_address;
-    }*/
-
     // Copy the pattern to a buffer
-    uintptr_t pos = 0;
-    size_t pattern_size = cryptoapi_functions.size() * sizeof(void*);
-    vector<BYTE> byte_pattern = vector<BYTE>(pattern_size);
-    for (auto& offset : cryptoapi_functions) {
-      memcpy(byte_pattern.data() + pos, &offset, sizeof(void*));
-      pos += sizeof(void*);
-    }
-
-    /*
-    for (unsigned int i = 0; i < pos; i++) {
-      printf("%02hhX ", byte_pattern[i]);
-      if (i % 16 == 15) { printf("\n"); }
-    } printf("\n");
-    */
-
-   // GetPrivateRSAPair(input_buffer, heap_info);
-
-    auto searcher = boyer_moore_horspool_searcher(byte_pattern.data(), byte_pattern.data() + pattern_size);
+    vector<BYTE> byte_pattern = GetCryptoAPIFunctions();
+    auto searcher = boyer_moore_horspool_searcher(byte_pattern.data(), byte_pattern.data() + byte_pattern.size());
+    // GetPrivateRSAPair(input_buffer, heap_info);
 
     size_t match_count = 0;
     unsigned char* search_start = input_buffer;
@@ -221,6 +292,12 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
       match_count++;
       printf(" [%zu] HCRYPTKEY structure found at offset [0x%p]\n", match_count, (void*) (position + heap_info.GetBaseAddress()));
       // ProcessCapturer::PrintMemory(search_result, 64, heap_info.base_address + position); // print the HCRYPTKEY structure
+
+      /* 
+        // TEST: Exporting the keys through DLL injection
+        HCRYPTKEY key = heap_info.GetBaseAddress() + position;
+        SendKeyHandleToMailSlot(key);
+      */
 
       // XOR with the magic constant
       SIZE_T data_read = 0;
@@ -242,7 +319,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
         
         } else {
           cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
-          search_start = search_result + pattern_size;
+          search_start = search_result + byte_pattern.size();
           continue;
         }
       } else {
@@ -262,7 +339,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
           key_data_struct = (cryptoapi::key_data_s*) buffer.data();
         } else {
           cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
-          search_start = search_result + pattern_size;
+          search_start = search_result + byte_pattern.size();
           continue;
         }
 
@@ -282,7 +359,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
           ptr = (ULONG_PTR) raw_key.data();
         } else {
           cerr << " [x] Error while copying the data: " << res.GetResultInformation() << endl;
-          search_start = search_result + pattern_size;
+          search_start = search_result + byte_pattern.size();
           continue;
         }
       }
@@ -294,7 +371,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
         )
       );
 
-      search_start = search_result + pattern_size;
+      search_start = search_result + byte_pattern.size();
       printf(" --\n");
     }
 
