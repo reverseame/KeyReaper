@@ -71,7 +71,7 @@ int PrintHeapInformation() {
   return func_result;
 }
 
-cryptoapi::key_data_s* GetKeyStruct(HCRYPTKEY key) {
+cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key) {
     cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) key;
     UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
     magic_xor = magic_xor ^ MAGIC_CONSTANT;
@@ -255,43 +255,84 @@ BOOL GenerateKeyWithIV(HCRYPTPROV provider) {
     return true;
 }
 
-void GenerateKeyChunck(HCRYPTPROV provider) {
+/*
+void Test() {
+    NTSTATUS status;
+    OBJECT_TYPE_INFORMATION typeInfo;
+    ULONG returnLength;
+
+    // Query the type of the object
+    status = NtQueryObject((HANDLE)0x12C, ObjectTypeInformation, &typeInfo, sizeof(typeInfo), &returnLength);
+    if (NT_SUCCESS(status)) {
+        printf("Object type: %ws\n", typeInfo.TypeName.Buffer);
+    }
+}
+*/
+
+void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
     HCRYPTKEY key;
     BOOL result;
-    BYTE buffer[1024];
+    BYTE buffer[2048];
+    BYTE buffer2[2048];
     DWORD data_len;
 
-
-    for (UINT u = 0; u < 10; u++) {
-        result = CryptGenKey(provider, CALG_AES_128, CRYPT_EXPORTABLE, &key);
+    for (UINT u = 0; u < number_of_keys; u++) {
+        result = CryptGenKey(provider, alg, CRYPT_EXPORTABLE, &key);
         if (result == 0) printf(" [x] Failed to generate key\n");
         else {
-            data_len = 1024;
-            result = CryptExportKey(key, NULL, PLAINTEXTKEYBLOB, 0, buffer, &data_len);
-            if (result == 0) printf(" [x] Could not export the key\n");
-            else {
-                cryptoapi::key_data_s* cryptkey = GetKeyStruct(key);
-                BYTE* raw_key = (BYTE*) cryptkey->key_bytes;
-                printf(" - KEY BYTES: 0x%p\n", raw_key);
+            if (alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN) {
+                printf(" [i] Assymetric algorithm detected\n");
+                data_len = 2048;
 
-                if (cryptkey->key_size != data_len - 12) {
-                    printf(" [x] Key size mismatch\n");
-                    continue;
-                }
+                result = CryptExportKey(key, NULL, PRIVATEKEYBLOB, 0, buffer2, &data_len);
+                if (result == 0) printf(" [x] Could not export the private pair\n");
 
-                printf(" --- RAW KEY: \n");
-                for (UINT w = 0; w < cryptkey->key_size; w++) {
-                    printf(" %02X", buffer[w+12]);
-                    if (buffer[w+12] != raw_key[w]) {
-                        printf("\n [x] Keys mismatch\n");
+                result = CryptExportKey(key, NULL, PUBLICKEYBLOB, 0, buffer, &data_len);
+                if (result == 0) printf(" [x] Could not export the public pair\n");
+
+            } else {
+                printf(" [i] Symmetric algorithm detected\n");
+                data_len = 2048;
+                result = CryptExportKey(key, NULL, PLAINTEXTKEYBLOB, 0, buffer, &data_len);
+                if (result == 0) printf(" [x] Could not export the key\n");
+                else {
+                    cryptoapi::key_data_s* cryptkey = GetKeyStruct(key);
+                    BYTE* raw_key = (BYTE*) cryptkey->key_bytes;
+                    printf(" - KEY BYTES: 0x%p\n", raw_key);
+
+                    if (cryptkey->key_size != data_len - 12) {
+                        printf(" [x] Key size mismatch\n");
                         continue;
                     }
-                } printf("\n");
-                printf("Keys match\n");
+
+                    printf(" --- RAW KEY: \n");
+                    for (UINT w = 0; w < cryptkey->key_size; w++) {
+                        printf(" %02X", buffer[w+12]);
+                        if (buffer[w+12] != raw_key[w]) {
+                            printf("\n [x] Keys mismatch\n");
+                            continue;
+                        }
+                    } printf("\n");
+                    printf("Keys match\n");
+                }
             }
         } printf("\n");
     }
     getchar();
+}
+
+void TestKeys(HCRYPTPROV provider) {
+    ALG_ID algorithms[] = { 
+        // ALL VALID AND MANTAINED DATA CIPHER ALGORITHMS
+        CALG_AES_128, CALG_AES_192, CALG_AES_256,   // AES
+        CALG_DES, CALG_3DES, CALG_3DES_112,         // DES
+        CALG_RC2, CALG_RC4,                         // RC
+        CALG_RSA_KEYX, CALG_RSA_SIGN,               // RSA
+    };
+
+    for (auto alg : algorithms) {
+        GenerateKeyChunck(provider, alg, 10);
+    }
 }
 
 vector<string> retrieveTextFiles(const wstring& folderPath) {
@@ -414,7 +455,7 @@ int main(int argc, char* argv[]) {
 
     // CheckAllBlockSizes(phProv);
     // GenerateKeyWithIV(phProv);
-    GenerateKeyChunck(phProv);
+    GenerateKeyChunck(phProv, CALG_AES_128, 1);
 
     // create a hash object from the CSP (cryptographic service provider)
     HCRYPTHASH hHash;
