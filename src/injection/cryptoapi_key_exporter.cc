@@ -15,12 +15,16 @@ using OkResult = error_handling::OkResult;
 using namespace process_injection;
 
 DWORD timeout_millis = 20000;
+HANDLE mailslot_thread = NULL;
 
 int StartMailSlot();
 
-extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
+extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
   StartMailSlot();
-  /*
+}
+
+extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
+  // StartMailSlot();
   NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
   // ShowGUIMessage("Creating server");
   server.CreateServer();
@@ -33,7 +37,6 @@ extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
   } // else ShowGUIMessage("Did not enter server loop due to previous error");
   // ShowGUIMessage("Closing server");
   server.CloseServer();
-  */
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
