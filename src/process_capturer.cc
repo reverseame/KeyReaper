@@ -8,6 +8,7 @@
 #include "key_scanner.h"
 #include "process_capturer.h"
 #include <TitanEngine.h>
+#include "injection/injector.h"
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
@@ -532,6 +533,19 @@ void ProcessCapturer::InspectMemoryRegions() {
 
     address = (LPBYTE) mbi.BaseAddress + mbi.RegionSize;
   }
+}
+
+error_handling::ProgramResult ProcessCapturer::InjectServerOnProcess(string dll_full_path) {
+  if (server_is_injected_) return ErrorResult("Server was already injected");
+
+  // TODO: check if file exists
+  auto res = injection::InjectDLLOnProcess(pid_, dll_full_path);
+  if (res.IsOk()) server_is_injected_ = true;
+  return res;
+}
+
+error_handling::ProgramResult ProcessCapturer::StartMailSlotExporterOnServer() {
+  return injection::StartMailSlotExporter(pid_, &server_thread_handle_);
 }
 
 void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, string file_name) {

@@ -204,11 +204,18 @@ class ProcessCapturer {
   error_handling::ProgramResult InitializeExports();
   void InspectMemoryRegions();
 
+  // INJECTION
+  error_handling::ProgramResult InjectServerOnProcess(std::string dll_full_path);
+  error_handling::ProgramResult StartMailSlotExporterOnServer();
+  error_handling::ProgramResult StopMailSlotExporterOnServer();
+
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;
   DWORD pid_;
   ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
   bool is_privileged_;
+  bool server_is_injected_; //  to keep track of the injection status (injected or not)
+  HANDLE server_thread_handle_;
 };
 
 } // namespace process_manipulation

