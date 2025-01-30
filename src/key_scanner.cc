@@ -61,19 +61,17 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
   for(HeapInformation heap : heaps) {
     printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
-    unsigned char* buffer = NULL;
+
+    auto buffer = vector<BYTE>();
     ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
     cout << "Copy result: " <<  result.GetResultInformation() << endl;
 
-    if (result.IsErr()) {
-      free(buffer);
-      continue;
-    }
+    if (result.IsErr()) continue;
 
     cout << "Number of scanners: " << scanners_.size() << endl;
     for (const auto& scanner : scanners_) {
       cout << " [" << scanner_count << "/" << total_scanners << "] Scanning with: " << scanner->GetName() << endl;
-      AddKeys(scanner->Scan(buffer, heap, pid_));
+      AddKeys(scanner->Scan(buffer.data(), heap, pid_));
     }
   }
 

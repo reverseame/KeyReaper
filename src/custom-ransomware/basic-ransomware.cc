@@ -280,6 +280,7 @@ void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
         result = CryptGenKey(provider, alg, CRYPT_EXPORTABLE, &key);
         if (result == 0) printf(" [x] Failed to generate key\n");
         else {
+            printf("HCRYPTKEY: %08X\n", key);
             if (alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN) {
                 printf(" [i] Assymetric algorithm detected\n");
                 data_len = 2048;

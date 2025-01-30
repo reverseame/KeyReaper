@@ -19,50 +19,38 @@ typedef NTSTATUS(NTAPI *pNtSuspendProcess)(
 
 namespace process_manipulation {
 
-class BlockInformation {
- public:
-  BlockInformation(ULONG_PTR base_address, SIZE_T size) : 
-    base_address_(base_address), size_(size) {}
-
-  ULONG_PTR GetBaseAddress() const;
-  ULONG_PTR GetLastAddress() const;
-  SIZE_T GetSize() const;
-
-  bool IsAdjacent(const BlockInformation other) const;
-  void CoalesceWith(const BlockInformation new_block);
-
-  bool operator<(const BlockInformation& other) const;
-  bool operator==(const BlockInformation& other) const;
-
- private:
-  ULONG_PTR base_address_; // dwAddress
-  SIZE_T size_; // dwBlockSize
-};
+// from x64dbg
+ULONG_PTR GetRegionStart(HANDLE process, ULONG_PTR valid_address_in_region);
+SIZE_T GetRegionSize(HANDLE hProcess, ULONG_PTR heapBase);
+bool MemReadDumb(HANDLE proc_handle, UINT_PTR BaseAddress, void* Buffer, SIZE_T Size);
 
 class HeapInformation {
  public:
-  HeapInformation(HEAPENTRY32 he) : 
-      id_(he.th32HeapID), base_address_(he.dwAddress), blocks_(), final_address_(he.dwAddress + he.dwBlockSize - 1) {};
-
+  HeapInformation(ULONG_PTR base_address, SIZE_T size) :
+      base_address_(base_address), size_(size) {};
   /**
-   * Retrieves the size of the heap
+   * Retrieves the size of the heap, excluding the top chunk
    */
   SIZE_T GetSize() const;
   ULONG_PTR GetBaseAddress() const;
   ULONG_PTR GetLastAddress() const;
-  const std::vector<BlockInformation> GetBlocks() const;
 
+  /**
+   * Checks if an address belongs to the heap
+   */
   bool IsAddressInHeap(ULONG_PTR pointer) const;
-  bool IsBlockInHeap(BlockInformation block) const;
+  /** 
+   * Given a pointer within the heap, the function updates it based on
+   * the new address and the base address of the pointer.
+   * Its purpose is to locate a pointer within a buffer after it has been
+   * written to a buffer, where the base address of the buffer and the heap
+   * do not match.
+   */
   bool RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const;
 
-  void AddBlock(BlockInformation new_block);
-
  private:
-  ULONG_PTR id_;
   ULONG_PTR base_address_;
-  ULONG_PTR final_address_;
-  std::vector<BlockInformation> blocks_;
+  SIZE_T size_;
 };
 
 class ProcessCapturer {
@@ -181,7 +169,7 @@ class ProcessCapturer {
    *                  supply a pointer. The size of the buffer will be the same as the heap.
    * 
    */
-  error_handling::ProgramResult CopyHeapData(HeapInformation heap_to_copy, unsigned char** buffer);
+  error_handling::ProgramResult CopyHeapData(HeapInformation heap_to_copy, std::vector<BYTE>* buffer);
 
   // Privileges
   error_handling::ProgramResult ObtainSeDebug();

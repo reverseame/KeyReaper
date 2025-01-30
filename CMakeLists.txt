@@ -55,6 +55,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cli11_proj)
 
+# TitanEngine
+set(TITAN_ENGINE_DIR "${CMAKE_SOURCE_DIR}/TitanEngine")
+set(TITAN_ENGINE_DLL "${TITAN_ENGINE_DIR}/TitanEngine_${ARCHITECTURE_APPEND}.dll")
+set(TITAN_ENGINE_LIB "${TITAN_ENGINE_DIR}/TitanEngine_${ARCHITECTURE_APPEND}.lib")
+include_directories(${TITAN_ENGINE_DIR})
+
 ### Binaries #############
 
 set(EXECUTABLE_NAME "craper")
@@ -76,9 +82,15 @@ add_executable(${EXECUTABLE_NAME}
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes ${TITAN_ENGINE_LIB})
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+# TitanEngine DLL dependency
+add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${TITAN_ENGINE_DLL}
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/TitanEngine.dll
+)
 
 set(EXECUTABLE_NAME "ransy")
 add_executable(${EXECUTABLE_NAME}
@@ -86,7 +98,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes )
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "ransy_decryptor")

@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <windows.h>
+#include <psapi.h>
+#include <fstream>
 #include <tlhelp32.h>
 #pragma comment(lib, "Kernel32.lib")
 
 #include "key_scanner.h"
 #include "process_capturer.h"
+#include <TitanEngine.h>
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
@@ -93,56 +96,113 @@ SIZE_T show_module(MEMORY_BASIC_INFORMATION info) {
 }
 
 namespace process_manipulation {
-nt_suspend::pNtSuspendProcess ProcessCapturer::fNtPauseProcess = nullptr; // static class member
 
-ULONG_PTR BlockInformation::GetBaseAddress() const { return base_address_; }
-ULONG_PTR BlockInformation::GetLastAddress() const { return base_address_ + size_ - 1; }
-
-SIZE_T BlockInformation::GetSize() const { return size_; }
-
-bool BlockInformation::operator<(const BlockInformation& other) const {
-  return base_address_ < other.base_address_;
+#define PAGE_SIZE 0x1000
+#define PAGE_ALIGN(Va)          ((ULONG_PTR)((ULONG_PTR)(Va) & ~(PAGE_SIZE - 1)))
+static bool IgnoreThisRead(HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead) {
+  typedef BOOL(WINAPI * QUERYWORKINGSETEX)(HANDLE, PVOID, DWORD);
+  static auto fnQueryWorkingSetEx = QUERYWORKINGSETEX(GetProcAddress(GetModuleHandleW(L"psapi.dll"), "QueryWorkingSetEx"));
+  if(!fnQueryWorkingSetEx)
+    return false;
+  PSAPI_WORKING_SET_EX_INFORMATION wsi;
+  wsi.VirtualAddress = (PVOID) PAGE_ALIGN(lpBaseAddress);
+  if(fnQueryWorkingSetEx(hProcess, &wsi, sizeof(wsi)) && !wsi.VirtualAttributes.Valid) {
+    MEMORY_BASIC_INFORMATION mbi;
+    if(VirtualQueryEx(hProcess, wsi.VirtualAddress, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT/* && mbi.Type == MEM_PRIVATE*/) {
+      memset(lpBuffer, 0, nSize);
+      if(lpNumberOfBytesRead)
+        *lpNumberOfBytesRead = nSize;
+      return true;
+    }
+  }
+  return false;
 }
 
-bool BlockInformation::operator==(const BlockInformation& other) const {
-  return base_address_ == other.base_address_;
+bool MemoryReadSafePage(HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead) {
+  if(IgnoreThisRead(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead))
+    return true;
+  return MemoryReadSafe(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead);
 }
 
-bool BlockInformation::IsAdjacent(const BlockInformation other) const {
-  return (other.base_address_ == base_address_ + size_);
+bool MemIsCanonicalAddress(UINT_PTR Address) {
+#ifndef _WIN64
+    // 32-bit mode only supports 4GB max, so limits are
+    // not an issue
+    return true;
+#else
+    // The most-significant 16 bits must be all 1 or all 0.
+    // (64 - 16) = 48bit linear address range.
+    //
+    // 0xFFFF800000000000 = Significant 16 bits set
+    // 0x0000800000000000 = 48th bit set
+    return (((Address & 0xFFFF800000000000) + 0x800000000000) & ~0x800000000000) == 0;
+#endif //_WIN64
 }
 
-void BlockInformation::CoalesceWith(const BlockInformation new_block) {
-  size_ += new_block.GetSize();
+bool MemReadDumb(HANDLE proc_handle, UINT_PTR BaseAddress, void* Buffer, SIZE_T Size) {
+  if(!MemIsCanonicalAddress(BaseAddress) || !Buffer || !Size)
+    return false;
+
+  SIZE_T offset = 0;
+  SIZE_T requestedSize = Size;
+  SIZE_T sizeLeftInFirstPage = PAGE_SIZE - (BaseAddress & (PAGE_SIZE - 1));
+  SIZE_T readSize = min(sizeLeftInFirstPage, requestedSize);
+
+  bool success = true;
+  while(readSize) {
+    SIZE_T bytesRead = 0;
+    if(!MemoryReadSafePage(proc_handle, (PVOID)(BaseAddress + offset), (PBYTE)Buffer + offset, readSize, &bytesRead))
+      success = false;
+    offset += readSize;
+    requestedSize -= readSize;
+    readSize = min((SIZE_T)PAGE_SIZE, requestedSize);
+  }
+  return success;
 }
 
-SIZE_T HeapInformation::GetSize() const {
-  if (blocks_.empty()) {
-    return 0;
+ULONG_PTR GetRegionStart(HANDLE process, ULONG_PTR valid_address_in_region) {
+  MEMORY_BASIC_INFORMATION mbi;
+  if (VirtualQueryEx(process, (LPCVOID) valid_address_in_region, &mbi, sizeof(mbi))) {
+    return  (ULONG_PTR) mbi.BaseAddress;
+  }
+  return 0;
+}
+
+SIZE_T GetRegionSize(HANDLE hProcess, ULONG_PTR heapBase) {
+  SIZE_T totalSize = 0;
+  MEMORY_BASIC_INFORMATION mbi;
+  LPVOID currentAddress = reinterpret_cast<LPVOID>(heapBase);
+
+  while (VirtualQueryEx(hProcess, currentAddress, &mbi, sizeof(mbi))) {
+    // Stop if we hit an uncommitted region
+    if (mbi.State != MEM_COMMIT || mbi.Type != MEM_PRIVATE)
+      break;
+
+    totalSize += mbi.RegionSize;
+    currentAddress = (LPVOID)((uintptr_t)mbi.BaseAddress + mbi.RegionSize);
   }
 
-  return final_address_ - base_address_;
+  return totalSize;
 }
 
-ULONG_PTR HeapInformation::GetBaseAddress() const {
-  return base_address_;
+nt_suspend::pNtSuspendProcess ProcessCapturer::fNtPauseProcess = nullptr; // static class member
+
+SIZE_T HeapInformation::GetSize() const {
+  return size_;
+}
+
+ULONG_PTR HeapInformation::GetBaseAddress() const
+{
+    return base_address_;
 }
 
 ULONG_PTR HeapInformation::GetLastAddress() const {
-  return final_address_;
-}
-
-const vector<BlockInformation> HeapInformation::GetBlocks() const {
-  return blocks_;
+  return base_address_ + size_;
 }
 
 bool HeapInformation::IsAddressInHeap(ULONG_PTR pointer) const {
   return pointer <= GetLastAddress() && pointer >= GetBaseAddress();
 };
-
-bool HeapInformation::IsBlockInHeap(BlockInformation block) const {
-  return IsAddressInHeap(block.GetBaseAddress()) && IsAddressInHeap(block.GetLastAddress());
-}
 
 bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const {
   if (!IsAddressInHeap(*pointer)) {
@@ -157,21 +217,6 @@ bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_addre
     *pointer -= GetBaseAddress();
     *pointer += new_base_address;
     return true;
-  }
-}
-
-void HeapInformation::AddBlock(BlockInformation new_block) {
-
-  ULONG_PTR new_block_last_add = new_block.GetBaseAddress() + new_block.GetSize() - 1;
-  if (final_address_ < new_block_last_add) final_address_ = new_block_last_add;
-
-  // If blocks are adjacent, they get coalesced
-  if (!blocks_.empty() && blocks_.back().IsAdjacent(new_block)) {
-    blocks_.back().CoalesceWith(new_block);
-
-  } else {
-    // Add block to list
-    blocks_.push_back(new_block);
   }
 }
 
@@ -500,7 +545,10 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
   // InspectMemoryRegions();
   // printf("========================\n\n");
   
-  printf("Getting and coalescing heaps\n");
+  printf("Getting heaps\n");
+
+  HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid_);
+  if (!process) return ErrorResult("Failed to open process handle");
 
   HEAPLIST32 hl;
   HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
@@ -508,6 +556,7 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
 
   if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
     printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
+    CloseHandle(process);
     return ErrorResult("Could not open handle to snapshot");
   }
 
@@ -519,33 +568,16 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
-        SIZE_T orignial_block_amount = 0;
-        HeapInformation heap_data = HeapInformation(he);
-        do {
-          // Don't add free blocks, since they will fail to copy
-          if (he.dwFlags != LF32_FREE) {
-            orignial_block_amount++;
+        SIZE_T original_block_amount = 0;
+        auto base = GetRegionStart(process, he.dwAddress);
+        auto size = GetRegionSize(process, he.dwAddress);
 
-            heap_data.AddBlock(
-              BlockInformation(he.dwAddress, he.dwBlockSize)
-            );
-          }
-          he.dwSize = sizeof(HEAPENTRY32);
-        } while ( Heap32Next(&he) );
-        // TODO: read as many bytes as possible from the top chunk
-
-        // Add the enumerated heap to the list
-        heaps->push_back(heap_data);
-
-        printf("======\n");
-        printf("Heap ID: %zd\n", hl.th32HeapID );
-        printf(" Base address: 0x%p\n", (void*) heap_data.GetBaseAddress());
-        printf(" Size of heap: %zu\n", heap_data.GetSize());
-        printf(" Final address: 0x%p\n", (void*) heap_data.GetLastAddress());
-        printf("  - Original block amount:   %zu\n", orignial_block_amount);
-        printf("  - Blocks after coallition: %zu\n", heap_data.GetBlocks().size());
-        printf("\n");
-      }
+        if (size != 0 && base != 0) {
+          heaps->push_back(
+            HeapInformation(base, size)
+          );
+        } else printf(" [x] Failed to acquire heap region size or base address\n");
+      } else printf(" [x] Failed to query one of the heaps");
 
       hl.dwSize = sizeof(HEAPLIST32);
     } while ( Heap32ListNext(hHeapSnap, &hl) );
@@ -556,54 +588,19 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
   }
    
   CloseHandle(hHeapSnap);
+  CloseHandle(process);
   return func_result;
 }
 
-ProgramResult ProcessCapturer::CopyHeapData(HeapInformation heap_to_copy, unsigned char **output_buffer) {
-  printf("Copying heap data\n");
+ProgramResult ProcessCapturer::CopyHeapData(HeapInformation heap_to_copy, vector<BYTE>* buffer) { 
+  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid_);
+  if (!process) return ErrorResult("Failed to open process handle");
 
-  if (heap_to_copy.GetBlocks().empty()) {
-    return ErrorResult("This heap is either empty or data not properly initialized. Please call EnumerateHeaps before this function");
-  }
+  buffer->resize(heap_to_copy.GetSize());
+  MemReadDumb(process, heap_to_copy.GetBaseAddress(), buffer->data(), buffer->size());
 
-  HANDLE process_handle = OpenProcess( PROCESS_VM_READ , FALSE, pid_ );
-
-  if (process_handle == NULL) {
-    return ErrorResult(PROC_OPEN_ERR_MSG);
-  }
-
-  ProgramResult func_result = OkResult("Heap copied succcessfully");
-
-  // Reservar la memoria para todo el heap
-  unsigned char* buffer = (unsigned char*) calloc(heap_to_copy.GetSize(), sizeof(unsigned char*));
-
-  SIZE_T failed_reads = 0;
-  for (BlockInformation block : heap_to_copy.GetBlocks()) {
-
-    // Copy the block to its relative position in the buffer
-    ULONG_PTR block_position = block.GetBaseAddress() - heap_to_copy.GetBaseAddress();
-    if ( heap_to_copy.IsBlockInHeap(block) ) {
-      SIZE_T bytes_read = !NULL; // don't init at zero (NULL), otherwise the call won't (over)write this variable with the number of bytes read
-      BOOL read_ok = ReadProcessMemory(process_handle, (void*) block.GetBaseAddress(), buffer + block_position, block.GetSize(), &bytes_read);
-
-      if (!read_ok) {
-        if (GetLastError() == ERROR_PARTIAL_COPY) { // Acceptable error.
-          // TODO: check the page in which are located to ensure we have enough permissions
-          failed_reads += block.GetSize() - bytes_read;
-
-        } else {
-          cout << error_handling::GetLastErrorAsString() << endl; 
-        }
-      }
-    } else {
-      printf("Block out of heap?\n");
-    }
-  }
-
-  *output_buffer = buffer;
-  cout << "Failed reads: " << failed_reads << endl;
-  CloseHandle(process_handle);
-  return func_result;
+  CloseHandle(process);
+  return OkResult("Heap copied succcessfully");
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
