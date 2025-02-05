@@ -64,17 +64,21 @@ struct CRAPI_PLAINTEXTKEYBLOB {
 };
 
 size_t const kError = 0;
-enum class CipherAlgorithm { kError, kUnknown, kAES, kRSA, kRC4, kDES, kSalsa20 };
+enum class CipherAlgorithm { kError, kUnknown, kAES, kRSA, kRC2, kRC4, kDES, k3DES, kSalsa20 };
 
 const std::unordered_map<CipherAlgorithm, std::string> cipher_to_string = {
   { CipherAlgorithm::kError, "Error" },
   { CipherAlgorithm::kUnknown, "Unknown" },
   { CipherAlgorithm::kAES, "AES" },
   { CipherAlgorithm::kRSA, "RSA" },
+  { CipherAlgorithm::kRC2, "RC2" },
   { CipherAlgorithm::kRC4, "RC4" },
   { CipherAlgorithm::kDES, "DES" },
-  { CipherAlgorithm::kSalsa20, "Salsa20" },
+  { CipherAlgorithm::k3DES, "3DES" },
+  { CipherAlgorithm::kRSA, "RSA" },
 };
+
+const WCHAR* GetCipherNameFromAlgID(ALG_ID alg);
 
 class KeyType {
  public:

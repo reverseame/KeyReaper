@@ -139,37 +139,62 @@ vector<BYTE> CrAPIKeyWrapper::GetParameter(DWORD parameter) {
   return data_bytes;
 }
 
+const WCHAR* GetCipherNameFromAlgID(ALG_ID alg) {
+  const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(alg), 0);
+  if (poid_info != NULL) {
+    return poid_info->pwszName;
+  } else return L"";
+}
+
 CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) {
   alg_id_ = key_data->alg;
   
+  // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
   switch (alg_id_) {
   case CALG_AES_128:
-    // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
-    printf(" Detected Windows CryptoAPI - AES 128 algorithm\n");
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
+    break;
+
+  case CALG_AES_192:
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
     break;
 
   case CALG_AES_256:
-    printf(" Detected Windows CryptoAPI - AES 256 algorithm\n");
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
+    break;
+
+  case CALG_DES:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kDES));
+    break;
+
+  case CALG_3DES:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::k3DES));
+    break;
+
+  case CALG_3DES_112:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::k3DES));
+    break;
+
+  case CALG_RC2:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRC2));
     break;
   
   case CALG_RC4:
-    printf(" Detected Windows CryptoAPI - RC4 algorithm\n");
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRC4));
     break;
+
+  case CALG_RSA_KEYX:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRSA));
+    break;
+
+  case CALG_RSA_SIGN:
+    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRSA));
+    break;
+
   default:
-    // specified in the constructor initialization list
-    // cipher_type_ = KeyType(KeySize::kError, CipherAlgorithm::kError);
-    printf(" Detected Windows CryptoAPI - Key data copied.\n");
-    printf("  > ALG_ID: %X", alg_id_);
+    printf("  [!] Algorithm not registered. ALG_ID: %X", alg_id_);
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kUnknown));
-    
-    const CRYPT_OID_INFO* poid_info = CryptFindOIDInfo(CRYPT_OID_INFO_ALGID_KEY, &(alg_id_), 0);
-    if (poid_info != NULL) {
-      wcout << " (" << poid_info->pwszName << ")" << endl;
-    } else printf("\n");
-    
+    cout << GetCipherNameFromAlgID(alg_id_) << endl;
     break;
   }
 

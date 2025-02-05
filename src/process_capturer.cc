@@ -226,11 +226,12 @@ ProcessCapturer::ProcessCapturer(unsigned int pid)
   if (!IsProcessAlive()) return;
 
   ProgramResult pr = ObtainSeDebug();
-  std::cout << " [i] " << pr.GetResultInformation() << std::endl;
+  // std::cout << " [i] " << pr.GetResultInformation() << std::endl;
+  if (pr.IsOk()) printf(" [i] Running privileged (SE_DEBUG token)\n");
+  else printf(" [i] Running without privileges (could not obtain SE_DEBUG token)\n");
   
   // TODO: check if the process is wow64.
   //       would work in 32 bit?
-
 }
 
 // TODO: add an argument for caching the thread list

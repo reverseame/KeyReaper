@@ -54,6 +54,7 @@ class ScannerVector {
   explicit ScannerVector() : scanners_(std::make_unique<std::vector<std::unique_ptr<ScanStrategy>>>()) {};
 
   // To allow iterators
+  auto& front() { return scanners_->front(); }
   auto begin() { return scanners_->begin(); }
   auto end() { return scanners_->end(); }
   auto begin() const { return scanners_->begin(); }

@@ -124,6 +124,88 @@ void ScannerFacade::AddScanners(ScannerVector scanners) {
   scanners.clear();
 }
 
+bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
+  vector<HeapInformation> heaps;
+  ProgramResult r = capturer_.EnumerateHeaps(&heaps);
+  cout << r.GetResultInformation() << endl;
+  if (!r.IsOk()) {
+    cout << GetLastErrorAsString() << endl;
+    return false;
+  }
+
+  LARGE_INTEGER start, end, frequency;
+  QueryPerformanceFrequency(&frequency);
+
+  auto heap = heaps[0]; // SCAN ONLY THE DEFAULT HEAP
+  double total_copy_time = 0;
+  size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
+  for(UINT u = 0; u < runs; u++) {
+    printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
+    auto buffer = vector<BYTE>();
+    QueryPerformanceCounter(&start);
+    ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
+    QueryPerformanceCounter(&end);
+    double milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
+    total_copy_time += milliseconds;
+
+    cout << "Copy result: " <<  result.GetResultInformation() << endl;
+  }
+  
+  auto buffer = vector<BYTE>();
+  ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
+
+  double total_scan_time = 0;
+  auto& scanner = scanners_.front();
+  for (UINT u = 0; u < runs; u++) {
+    QueryPerformanceCounter(&start);
+    auto found_keys = scanner->Scan(buffer.data(), heap, pid_);
+    QueryPerformanceCounter(&end);
+
+    AddKeys(found_keys);
+
+    double milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
+    cout << "Scan millis: " << milliseconds << std::endl;
+    total_scan_time += milliseconds;
+  }
+
+  if (keys_.size() != expected_num_of_keys) {
+    cout << " [!] Mismatched number of keys." << endl;
+    cout << "    * Expected: " << expected_num_of_keys << endl;
+    cout << "    * Actual:   " << keys_.size() << endl;
+  }
+
+  printf("\n. RESULTS ================\n");
+  printf("|  > Copy average: %.2f\n", total_copy_time / runs);
+  printf("|  > Scan average: %.2f\n", total_scan_time / runs);
+  printf(". ________________________\n");
+  printf("Writing results to file...\n");
+
+  string filename = "results.csv";
+
+  ofstream file(filename, ios::app);
+  if (!file.is_open()) {
+    cerr << "Failed to open file: " << filename << endl;
+    return false;
+  }
+
+  // Write the header if there's not
+  // if (is_empty) {
+  // file << "Algorithm,Runs,Keys found,Keys expected,Copy Time Average(ms),Scan Time Average(ms)" << std::endl;
+  // }
+  // NOT WORKING??? TODO: fix
+
+  file
+  << "," << runs
+  << "," << keys_.size()
+  << "," << expected_num_of_keys
+  << "," << std::fixed << std::setprecision(2) << total_copy_time / runs
+  << "," << std::fixed << std::setprecision(2) << total_scan_time / runs
+  << std::endl;  
+
+  file.close();
+  return true;
+}
+
 void ScannerFacade::AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> keys) {
   keys_.merge(keys);
 }

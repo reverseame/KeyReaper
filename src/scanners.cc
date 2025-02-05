@@ -187,28 +187,28 @@ void GetPrivateRSAPair(unsigned char* input_buffer, HeapInformation heap_info) {
   if (matches == 0) printf("No matches found\n");
 
   HANDLE hSourceProcess = OpenProcess(PROCESS_DUP_HANDLE, FALSE, 7892);
-if (!hSourceProcess) {
-  printf("Failed to open source process: %lu\n", GetLastError());
-  return;
-}
+  if (!hSourceProcess) {
+    printf("Failed to open source process: %lu\n", GetLastError());
+    return;
+  }
 
-HANDLE hTargetProcess = GetCurrentProcess(); // Duplicate into the current process
-HANDLE hDuplicatedHandle;
+  HANDLE hTargetProcess = GetCurrentProcess(); // Duplicate into the current process
+  HANDLE hDuplicatedHandle;
 
-if (DuplicateHandle(
-  hSourceProcess,      // Source process
-  (HANDLE) 0x12C,  // Handle to duplicate
-  hTargetProcess,      // Target process
-  &hDuplicatedHandle,  // New handle
-  0,                   // Access rights (0 = same as source)
-  FALSE,               // Not inheritable
-  DUPLICATE_SAME_ACCESS)) { // Same access rights
-  printf("Successfully duplicated handle\n");
-} else {
-  printf("Failed to duplicate handle: %lu\n", GetLastError());
-}
+  if (DuplicateHandle(
+    hSourceProcess,      // Source process
+    (HANDLE) 0x12C,  // Handle to duplicate
+    hTargetProcess,      // Target process
+    &hDuplicatedHandle,  // New handle
+    0,                   // Access rights (0 = same as source)
+    FALSE,               // Not inheritable
+    DUPLICATE_SAME_ACCESS)) { // Same access rights
+    printf("Successfully duplicated handle\n");
+  } else {
+    printf("Failed to duplicate handle: %lu\n", GetLastError());
+  }
 
-CloseHandle(hSourceProcess);
+  CloseHandle(hSourceProcess);
 
   IO_STATUS_BLOCK status_block;
   NTSTATUS res = NtDeviceIoControlFile(

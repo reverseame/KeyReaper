@@ -46,6 +46,8 @@ class ScannerFacade {
   // Strategies
   void AddScanners(ScannerVector scanners);
 
+  bool StressTest(UINT runs, UINT expected_num_of_keys);
+
  private:
   void AddKeys(std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> keys);
 
