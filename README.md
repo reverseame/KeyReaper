@@ -1,4 +1,6 @@
 # KeyReaper
+Harvest cryptographic keys before ransomware takes hold
+
 This tool was developed as part of a reserach on Windows `HCRYPTKEY`, the internal format to represent keys in the CryptoAPI.
 
 This tool is able to make a copy of the heap of the remote process and scan it looking for cryptographic keys. It is also able to manage the execution
