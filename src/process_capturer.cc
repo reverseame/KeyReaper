@@ -9,6 +9,7 @@
 #include "process_capturer.h"
 #include <TitanEngine.h>
 #include "injection/injector.h"
+#include "injection/injector.h"
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
