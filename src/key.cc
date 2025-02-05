@@ -194,7 +194,7 @@ CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) 
   default:
     printf("  [!] Algorithm not registered. ALG_ID: %X", alg_id_);
     SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kUnknown));
-    cout << GetCipherNameFromAlgID(alg_id_) << endl;
+    wcout << GetCipherNameFromAlgID(alg_id_) << endl;
     break;
   }
 
