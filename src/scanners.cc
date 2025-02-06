@@ -9,6 +9,7 @@
 #include "scanners.h"
 #include "process_capturer.h"
 #include "cryptoapi.h"
+#include <aes.h>
 
 using namespace std;
 using ProcessCapturer = process_manipulation::ProcessCapturer;
@@ -387,6 +388,13 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
 }
 
 std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, DWORD _pid) const {
+  interrogate_context ctx;
+  ctx.keysize = 256;
+  ctx.from = 0;
+  ctx.filelen = key_buffer.size();
+  printf("Searching for a key\n");
+  printf(" BUFLEN: %u\n", key_buffer.size());
+  aes_search(&ctx, key_buffer.data());
   return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 }
 
