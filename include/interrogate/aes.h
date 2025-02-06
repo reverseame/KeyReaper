@@ -45,7 +45,8 @@ void print_hex_array(unsigned char *buffer, int length, int columns) {
   printf("\n\n");
 }
 
-void aes_search(interrogate_context* ctx, unsigned char* buffer) {
+std::vector<std::vector<BYTE>> aes_search(interrogate_context* ctx, unsigned char* buffer) {
+  auto found_keys = vector<BYTE>();
 	unsigned int i;
 
 	/* Set key schedule sizes */
@@ -75,9 +76,14 @@ void aes_search(interrogate_context* ctx, unsigned char* buffer) {
 			print_hex_array(ks, ctx->keysize / 8, 16);
 			printf("Expanded key:\n");
 			print_hex_array(ks, kssize, 16);
+      auto key = vector<BYTE>(ctx->keysize, 0);
+      memcpy(key.data(), ks, min(key.size(), kssize));
+      found_keys.push_back(move(key));
 		}
 	}
   if (ctx->count == 0) printf("Did not found any keys\n");
+
+  return found_keys;
 }
 
 } // namespace interrogate

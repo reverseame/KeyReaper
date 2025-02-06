@@ -387,19 +387,19 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   return found_keys;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, DWORD _pid) const {
-  interrogate_context ctx;
+unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, DWORD _pid) const {
+  interrogate::interrogate_context ctx;
   ctx.keysize = 256;
   ctx.from = 0;
   ctx.filelen = key_buffer.size();
   printf("Searching for a key\n");
   printf(" BUFLEN: %u\n", key_buffer.size());
-  aes_search(&ctx, key_buffer.data());
-  return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+  interrogate::aes_search(&ctx, key_buffer.data());
+  return unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 }
 
-ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners) {
-  scanners_ = std::move(scanners);
+ScannerVector::ScannerVector(unique_ptr<vector<unique_ptr<ScanStrategy>>> scanners) {
+  scanners_ = move(scanners);
 }
 
 } // namespace key_scanner
