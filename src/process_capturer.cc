@@ -8,6 +8,8 @@
 #include "key_scanner.h"
 #include "process_capturer.h"
 #include <TitanEngine.h>
+#include <config.h>
+#include "injection/injector.h"
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
@@ -221,7 +223,7 @@ bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_addre
 }
 
 ProcessCapturer::ProcessCapturer(unsigned int pid) 
-    : pid_(pid), suspended_(false), is_privileged_(false) {
+    : pid_(pid), suspended_(false), is_privileged_(false), server_is_injected_(false), is_mailslot_server_started_(false), server_thread_handle_(NULL) {
 
   if (!IsProcessAlive()) return;
 
@@ -534,10 +536,49 @@ void ProcessCapturer::InspectMemoryRegions() {
   }
 }
 
+ProgramResult ProcessCapturer::InjectDLLOnProcess(wstring dll_full_path) {
+  // TODO: check if file exists
+  return injection::InjectDLLOnProcess(pid_, dll_full_path);
+}
+
+ProgramResult ProcessCapturer::InjectServerOnProcess() {
+  if (server_is_injected_)
+    return ErrorResult("Server was already injected");
+
+  auto res = injection::InjectDLLOnProcess(pid_, Config::Instance().GetKeyExtractorDLLPath());
+  if (res.IsOk())
+    server_is_injected_ = true;
+  return res;
+}
+
+ProgramResult ProcessCapturer::StartMailSlotExporterOnServer() {
+  auto result = injection::StartMailSlotExporter(pid_, &server_thread_handle_);
+  if (result.IsOk()) is_mailslot_server_started_ = true;
+  return result;
+}
+
+ProgramResult ProcessCapturer::StopMailSlotExporterOnServer() {
+  if (!is_mailslot_server_started_) {
+    return ErrorResult("Mailslot server is not running");
+  }
+
+  if (server_thread_handle_ == NULL) {
+    return ErrorResult("The handle to the server thread is not valid");
+  }
+
+  BOOL result = TerminateThread(server_thread_handle_, 0);
+  if (result == 0) return ErrorResult("Could not terminate remote thread");
+  
+  is_mailslot_server_started_ = false;
+  server_thread_handle_ = NULL;
+  return OkResult("Stopped Mailslot server");
+}
+
 void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, string file_name) {
-  FILE* file = fopen(file_name.c_str(), "wb");
-  fwrite(buffer, 1, size, file);
-  fclose(file);
+  ofstream file(file_name, ios::binary);
+  if (file) {
+    file.write(reinterpret_cast<const char*>(buffer), size);
+  } else printf("Could not open file\n");
   // ProcessCapturer::PrintMemory(buffer, size);
 }
 

@@ -68,9 +68,9 @@ It is split into two main subcommands (so far) which allows us to scan for keys 
 and managing processes' execution `proc`. You can invoke the program with the help
 flag for further information.
 ```
-PS C:\> .\craper_x86.exe --help
-CRAPER: cryptographic key recovery for live processes
-Usage: C:\craper_x86.exe [OPTIONS] SUBCOMMAND
+PS C:\> .\KeyReaper_x86.exe --help
+KeyReaper: cryptographic key recovery for live processes
+Usage: C:\KeyReaper_x86.exe [OPTIONS] SUBCOMMAND
 
 Options:
   -h,--help                   Print this help message and exit
@@ -83,9 +83,9 @@ Subcommands:
 Subcommands have also a help menu with information.
 
 ```
-PS C:\> .\craper_x86.exe scan --help
+PS C:\> .\KeyReaper_x86.exe scan --help
 Scan for keys in the process
-Usage: C:\craper_x86.exe scan [OPTIONS]
+Usage: C:\KeyReaper_x86.exe scan [OPTIONS]
 
 Options:
   -h,--help                   Print this help message and exit
@@ -102,7 +102,7 @@ Options:
 
 An example execution:
 ```
-PS C:\> .\craper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
+PS C:\> .\KeyReaper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
 ```
 
 ## Library

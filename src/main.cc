@@ -7,8 +7,10 @@
 #include <map>
 #include <stdlib.h>
 #include <functional>
+#include <filesystem>
 
 #include <CLI/CLI.hpp>
+#include <config.h>
 
 #include "process_capturer.h"
 #include "program_result.h"
@@ -19,6 +21,8 @@ using namespace process_manipulation;
 using namespace key_scanner;
 using namespace error_handling;
 using namespace std;
+
+namespace fs = std::filesystem;
 
 enum class ActionOptions : int { kPause, kNtPause, kResume, kKill, kDoNothing };
 enum class ScannerOptions : int { kCryptoAPIScan, kAESRoundKeyScan };
@@ -49,6 +53,22 @@ std::string GetChoices(const std::map<std::string, EnumClass>& options_map, cons
   }
   choices << ")";
   return choices.str();
+}
+
+bool LoadConfig() {
+  string config_file = "config.toml";
+  if (!fs::exists(config_file)) {
+    cout << "[!] Config file not found, creating a new one with the name: " << config_file << endl;
+    ofstream empty_file(config_file);
+  }
+  
+  ProgramResult result = Config::Instance().Load(config_file);
+  if (result.IsErr()) {
+    cerr << result.GetResultInformation() << endl;
+    return false;
+  }
+
+  return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -108,6 +128,11 @@ int main(int argc, char *argv[]) {
 
   // Macro for parsing and error checking (will exit if parsing fails)
   CLI11_PARSE(app, argc, argv);
+
+  if (!LoadConfig()) {
+    cerr << "[x] An error happened while loading the configuration\n";
+    return 1;
+  }
 
   cout << "[i] Capturing PID: " << pid << endl;
   auto scanner = ScannerFacade(pid, ScannerVector(), OnDestroyAction::kDoNothing);

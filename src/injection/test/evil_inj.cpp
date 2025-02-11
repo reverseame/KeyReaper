@@ -24,8 +24,8 @@ int main(int argc, char* argv[]) {
 
   // parse process ID
   if ( atoi(argv[1]) == 0) {
-      printf("PID not found :( exiting...\n");
-      return -1;
+    printf("PID not found :( exiting...\n");
+    return -1;
   }
   printf("PID: %i", atoi(argv[1]));
   ph = OpenProcess(PROCESS_ALL_ACCESS, FALSE, DWORD(atoi(argv[1])));

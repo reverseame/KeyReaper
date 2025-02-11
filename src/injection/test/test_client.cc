@@ -5,7 +5,7 @@
 #include <iostream>
 
 using namespace error_handling;
-using namespace process_injection;
+using namespace custom_ipc;
 using namespace std;
 
 int main() {

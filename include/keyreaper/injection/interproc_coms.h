@@ -6,9 +6,7 @@
 
 #include "../program_result.h"
 
-namespace process_injection {
-
-namespace command_messages {
+namespace custom_ipc {
 
 #define SEND_KEY_CMD 1
 #define END_SERVER_CMD 99
@@ -18,9 +16,8 @@ struct CommandMessage {
   WPARAM first_arg; // architecture dependant
 };
 
-} // namespace messages
-
-void ShowGUIMessage(std::string message);
+HANDLE WaitForMailSlot(std::string mailslot_name, DWORD timeout);
+void SendKeyHandleToMailSlot(HCRYPTKEY key);
 
 extern const char* kPipeName;
 
@@ -51,7 +48,7 @@ class NamedPipeServer : public NamedPipeCommunicator {
   error_handling::ProgramResult CloseServer();
 
   // Communication operations
-  error_handling::ProgramResult ReadCommand(command_messages::CommandMessage* command);
+  error_handling::ProgramResult ReadCommand(CommandMessage* command);
   error_handling::ProgramResult SendKey(ULONG_PTR key_handle);
 
  private:
@@ -79,6 +76,6 @@ class NamedPipeClient : public NamedPipeCommunicator {
   error_handling::ProgramResult ReadPlainBlob(BYTE* buffer, DWORD buffer_size);
 };
 
-} // namespace process_injection
+} // namespace custom_ipc
 
 #endif

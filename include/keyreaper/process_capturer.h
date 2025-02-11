@@ -194,6 +194,12 @@ class ProcessCapturer {
   */
   bool IsProcessAlive() const;
 
+  // INJECTION
+  error_handling::ProgramResult InjectDLLOnProcess(std::wstring dll_full_path);
+  error_handling::ProgramResult InjectServerOnProcess();
+  error_handling::ProgramResult StartMailSlotExporterOnServer();
+  error_handling::ProgramResult StopMailSlotExporterOnServer();
+
  private:
  // TODO: review
   void SetSuspendPtr(int ThreadSuspendFunction);
@@ -209,6 +215,9 @@ class ProcessCapturer {
   ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
   bool is_privileged_;
+  bool server_is_injected_; //  to keep track of the injection status (injected or not)
+  bool is_mailslot_server_started_;
+  HANDLE server_thread_handle_;
 };
 
 } // namespace process_manipulation
