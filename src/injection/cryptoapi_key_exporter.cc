@@ -87,7 +87,7 @@ int StartMailSlot() {
       key_scanner::cryptoapi::ForceExportBit(key);
 
       printf("Exporting key: 0x%p\n", (void*) key);
-
+      printf(" Exporting PRIVATEKEYBLOB\n");
       BYTE key_buffer[PRIVATEKEYBLOB_SIZE];
       ZeroMemory(key_buffer, PRIVATEKEYBLOB_SIZE);
       DWORD data_len = PRIVATEKEYBLOB_SIZE;
@@ -100,14 +100,36 @@ int StartMailSlot() {
         &data_len
       );
 
-      if (res == 0) std::cerr << " [x] Could not export the key: " << error_handling::GetLastErrorAsString() << std::endl;
+      if (res == 0) std::cerr << " [x] Could not export PRIVATE pair: " << error_handling::GetLastErrorAsString() << std::endl;
       else {
         printf(" [i] Key successfully exported, exporting it to a file\n");
-        std::ofstream file("key.bin", std::ios::binary);
+        std::ofstream file("key.privk", std::ios::binary);
+        if (file) {
+          file.write(reinterpret_cast<const char*>(buffer.data()), data_len);
+        } else printf(" [x] Could not open file\n");
+      }
+
+      printf(" Exporting PUBLICKEYBLOB\n");
+      ZeroMemory(key_buffer, PRIVATEKEYBLOB_SIZE);
+      data_len = PRIVATEKEYBLOB_SIZE;
+      res = CryptExportKey(
+        key,
+        NULL,
+        PUBLICKEYBLOB,
+        0,
+        key_buffer,
+        &data_len
+      );
+
+      if (res == 0) std::cerr << " [x] Could not export PUBLIC pair: " << error_handling::GetLastErrorAsString() << std::endl;
+      else {
+        printf(" [i] Key successfully exported, exporting it to a file\n");
+        std::ofstream file("key.pubk", std::ios::binary);
         if (file) {
           file.write(reinterpret_cast<const char*>(buffer.data()), data_len);
         } else printf(" [x] Could not open file");
       }
+
     } else {
       std::cerr << "Failed to read from mailslot. Error: " << GetLastError() << std::endl;
     }
