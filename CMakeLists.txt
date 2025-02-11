@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_SYSTEM_NAME Windows)
-project(Craperv2 VERSION 1.0.1)
-set(PROGRAM_NAME "CRAPER")
+project(KeyReaper VERSION 1.4.1)
+set(PROGRAM_NAME "KeyReaper")
 
 set(MSVC True)
 set(CMAKE_CXX_STANDARD 20)
@@ -27,7 +27,7 @@ endif()
 
 ## Ease for includes
 add_library(common_includes INTERFACE)
-target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/craper)
+target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/keyreaper)
 
 # 3rd parties
 include(FetchContent)
@@ -55,6 +55,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cli11_proj)
 
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(tomlplusplus)
+
 # TitanEngine
 set(TITAN_ENGINE_DIR "${CMAKE_SOURCE_DIR}/TitanEngine")
 set(TITAN_ENGINE_DLL "${TITAN_ENGINE_DIR}/TitanEngine_${ARCHITECTURE_APPEND}.dll")
@@ -63,7 +70,7 @@ include_directories(${TITAN_ENGINE_DIR})
 
 ### Binaries #############
 
-set(EXECUTABLE_NAME "craper")
+set(EXECUTABLE_NAME "KeyReaper")
 
 # Set version number
 configure_file(
@@ -73,16 +80,19 @@ configure_file(
 )
 
 add_executable(${EXECUTABLE_NAME}
+    ${SOURCE_BASE_DIR}/config.cc
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/key.cc
     ${SOURCE_BASE_DIR}/scanners.cc
     ${SOURCE_BASE_DIR}/key_scanner.cc
+    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/injector.cc
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${CMAKE_CURRENT_BINARY_DIR}/main.cc
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes ${TITAN_ENGINE_LIB})
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 tomlplusplus::tomlplusplus common_includes ${TITAN_ENGINE_LIB})
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 # TitanEngine DLL dependency
@@ -95,6 +105,7 @@ add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
 set(EXECUTABLE_NAME "ransy")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/key.cc
+    ${SOURCE_BASE_DIR}/cryptoapi.cc
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
 )
@@ -120,9 +131,10 @@ set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NA
 
 
 # --- Injected DLL -----------------
-set(LIBRARY_NAME "evil")
+set(LIBRARY_NAME "injectable_server")
 add_library(${LIBRARY_NAME} SHARED
     ${SOURCE_BASE_DIR}/program_result.cc
+    ${SOURCE_BASE_DIR}/cryptoapi.cc
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/cryptoapi_key_exporter.cc
 )
@@ -134,7 +146,7 @@ set(EXECUTABLE_NAME "injector")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
-    ${SOURCE_BASE_DIR}/injection/injector.cc
+    ${SOURCE_BASE_DIR}/injection/injector_program.cc
 )
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")

@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 using namespace error_handling;
-using namespace process_injection;
+using namespace custom_ipc;
 
 HCRYPTKEY hKey;         // Session key handle
 void GenerateKey() {

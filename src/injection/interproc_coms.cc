@@ -2,18 +2,77 @@
 
 #include <iostream>
 #include <wincrypt.h>
+#include <chrono>
+#include <thread>
 
 using namespace std;
 using namespace error_handling;
-using CommandMessage = process_injection::command_messages::CommandMessage;
+using CommandMessage = custom_ipc::CommandMessage;
 
-namespace process_injection {
+namespace custom_ipc {
 
 void ShowGUIMessage(std::string message) {
   MessageBoxA(NULL, message.c_str(), "Injected process", MB_OK);
 }
 
 const char* kPipeName = R"(\\.\pipe\YourPipeName)";
+
+HANDLE WaitForMailSlot(string mailslot_name, DWORD timeout) {
+  HANDLE mailslot;
+  auto startTime = chrono::steady_clock::now();
+
+  while (true) {
+    // Try to open the mailslot
+    mailslot = CreateFileA(
+      mailslot_name.c_str(),
+      GENERIC_WRITE,
+      FILE_SHARE_READ,
+      NULL,
+      OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL,
+      NULL
+    );
+
+    if (mailslot != INVALID_HANDLE_VALUE) {
+      break; // Successfully opened
+    }
+
+    // Check if timeout expired
+    auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - startTime).count();
+    if (elapsed > timeout) {
+      cerr << "Timeout: Could not open mailslot after " << timeout << " ms\n";
+      break;
+    }
+
+    this_thread::sleep_for(chrono::milliseconds(100)); // Small delay before retrying
+  }
+  return mailslot;
+}
+
+void SendKeyHandleToMailSlot(HCRYPTKEY key) {
+  printf("Sending key over the MailSlot. Data size: %u\n", sizeof(HCRYPTKEY));
+  LPCSTR mailslot_name = "\\\\.\\mailslot\\KeyReaperServer";
+
+  DWORD timeout = 10000;
+  HANDLE mailslot = WaitForMailSlot(mailslot_name, timeout);
+
+  if (mailslot == INVALID_HANDLE_VALUE) {
+    cerr << "Mailslot not available within timeout: " << timeout << endl;
+    return;
+  }
+
+  DWORD bytes_written;
+  BYTE* buffer = (BYTE*) &key;
+  // Write to the mailslot
+  if (WriteFile(mailslot, buffer, sizeof(HCRYPTKEY), &bytes_written, NULL)) {
+    cout << "Successfully wrote " << bytes_written << " bytes to the mailslot." << endl;
+  } else {
+    cerr << "Failed to write to the mailslot. Error: " << error_handling::GetLastErrorAsString() << endl;
+  }
+
+  // Close the handle
+  CloseHandle(mailslot);
+}
 
 ProgramResult NamedPipeCommunicator::ReadMessage(BYTE* buffer, size_t buffer_size) {
   
@@ -493,4 +552,4 @@ ProgramResult NamedPipeClient::CloseConnection() {
   return func_result;
 }
 
-} // namespace process_injection
+} // namespace custom_ipc

