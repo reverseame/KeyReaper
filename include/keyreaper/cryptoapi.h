@@ -70,6 +70,8 @@ cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key);
  * This function sets the exportable bit of an HCRYPTKEY
  *  to be able to export it with CryptExportKey even if
  *  it was not generated with the CRYPT_EXPORTABLE flag set.
+ * Will work with any type of key, but bare in mind that 
+ *  private pairs check other things too.
  * DO NOT use it on a dump, as it does not calculate
  *  the offsets.
  */
