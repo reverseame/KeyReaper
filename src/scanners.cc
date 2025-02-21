@@ -235,7 +235,7 @@ void InjectExtractKeys(unordered_set<HCRYPTKEY> key_handles) {
   }
 }
 
-unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, DWORD pid) const {
+unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
   unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 
   // TEST
@@ -257,8 +257,6 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
     size_t match_count = 0;
     unsigned char* search_start = input_buffer;
     unsigned char* search_result;
-
-    ProcessCapturer process_capturer = ProcessCapturer(pid);
 
     // While there are matches left
     while ((search_result = search(search_start, input_buffer + heap_info.GetSize(), searcher)) != input_buffer + heap_info.GetSize()) {
@@ -283,7 +281,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
         printf(" Magic struct address [0x%p] is outside of the heap dump, trying a manual copy\n", (void*) unk_struct);
         buffer.resize(sizeof(cryptoapi::magic_s), 0);
 
-        error_handling::ProgramResult res = process_capturer.GetMemoryChunk((BYTE*) unk_struct, sizeof(cryptoapi::magic_s), buffer.data(), &data_read);
+        error_handling::ProgramResult res = capturer.GetMemoryChunk((BYTE*) unk_struct, sizeof(cryptoapi::magic_s), buffer.data(), &data_read);
         if (res.IsOk() && data_read == sizeof(cryptoapi::magic_s)) {
           magic_struct_ptr = (cryptoapi::magic_s*) buffer.data();
         
@@ -304,7 +302,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
         printf(" Key data [0x%p] is out of this heap, trying a manual copy\n", magic_struct_ptr->key_data);
         buffer.resize(sizeof(cryptoapi::key_data_s), 0);
 
-        error_handling::ProgramResult res = process_capturer.GetMemoryChunk((BYTE*) ptr, sizeof(cryptoapi::key_data_s), buffer.data(), &data_read);
+        error_handling::ProgramResult res = capturer.GetMemoryChunk((BYTE*) ptr, sizeof(cryptoapi::key_data_s), buffer.data(), &data_read);
         if (res.IsOk() && data_read == sizeof(cryptoapi::key_data_s)) {
           key_data_struct = (cryptoapi::key_data_s*) buffer.data();
         } else {
@@ -324,7 +322,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
         printf(" Key [0x%p] is out of this heap, trying a manual copy\n", (void*) ptr);
         raw_key.resize(key_data_struct->key_size, '\0');
 
-        error_handling::ProgramResult res = process_capturer.GetMemoryChunk((BYTE*) key_data_struct->key_bytes, key_data_struct->key_size, raw_key.data(), &data_read);
+        error_handling::ProgramResult res = capturer.GetMemoryChunk((BYTE*) key_data_struct->key_bytes, key_data_struct->key_size, raw_key.data(), &data_read);
         if (res.IsOk() && data_read == key_data_struct->key_size) {
           ptr = (ULONG_PTR) raw_key.data();
         } else {
@@ -339,15 +337,22 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
       if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN ) {
         printf(" [i] Detected an asymmetric key\n");
         // TODO: don't export it on the remote process but here (interproc comms)
-        auto res = process_capturer.InjectServerOnProcess();
-        cout << res.GetResultInformation() << endl;
-        if (res.IsOk()) {
+        
+        // Do a delayed initialization (to avoid injection in case there are not RSA keys)
+        // auto res = process_capturer.InjectControllerOnProcess();
+        // cout << res.GetResultInformation() << endl;
+        //if (res.IsOk()) {
+          /* 
           res = process_capturer.StartMailSlotExporterOnServer();
           cout << res.GetResultInformation() << endl;
           if (res.IsOk()) {
-            custom_ipc::SendKeyHandleToMailSlot(key_handle);
-          }
-        }
+          custom_ipc::SendKeyHandleToMailSlot(key_handle);
+          } */
+
+          //auto key_blobs = vector<vector<BYTE>>();
+          // res = process_capturer.GetKeyBlobFromRemote();
+          // if (res.IsErr()) return res;
+        //}
         // TODO create a CryptoAPI key here
       }
 
@@ -373,7 +378,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
   return found_keys;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, DWORD _pid) const {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
   return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 }
 

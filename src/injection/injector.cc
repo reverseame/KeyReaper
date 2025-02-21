@@ -3,19 +3,16 @@
 #include <psapi.h>
 
 #include <iostream>
+#include <thread>
 #include "program_result.h"
 #include "injection/interproc_coms.h"
-#include <injection/injector.h>
-#include <config.h>
+#include "injection/injector.h"
+#include "config.h"
 
 using namespace std;
 using namespace error_handling;
 
 namespace injection {
-
-void ShowGUIMessage(string message) {
-  MessageBoxA(NULL, message.c_str(), "Injected process", MB_OK);
-}
 
 bool IsDLLLoadedOnProcess(DWORD pid, wstring w_dll_path, HANDLE process_handle) {
   if (!process_handle) return false;
@@ -73,37 +70,41 @@ ProgramResult InjectDLLOnProcess(DWORD pid, wstring w_dll_path) {
   return result;
 }
 
-ProgramResult StartServer(DWORD pid, HANDLE* thread_handle) {
-  // GetProcAddress to get the function and CreateRemoteThread to start it
-  return ErrorResult("Not implemented");
+ProgramResult StartControllerServer(DWORD pid, HANDLE* thread_handle) {
+  return CallRemoteFunction(pid, Config::Instance().GetKeyExtractorDLLPath(), "StartServer", thread_handle);
 }
 
-error_handling::ProgramResult StartMailSlotExporter(DWORD pid, HANDLE *thread_handle) {
-  wstring w_dll_path = Config::Instance().GetKeyExtractorDLLPath();
+error_handling::ProgramResult StartMailSlotExporter(DWORD pid, HANDLE* thread_handle) {
+  return CallRemoteFunction(pid, Config::Instance().GetKeyExtractorDLLPath(), "StartMailSlotExporter", thread_handle);
+}
+
+error_handling::ProgramResult CallRemoteFunction(DWORD pid, std::wstring w_dll_path, string function_name, HANDLE* thread_handle) {
   HMODULE injected_dll = LoadLibraryW(w_dll_path.c_str());
   if (injected_dll == NULL) 
     return ErrorResult("Could not load the specified DLL");
 
-  FARPROC start_server_function = GetProcAddress(injected_dll, "StartMailSlotExporter");
+  FARPROC start_server_function = GetProcAddress(injected_dll, function_name.c_str());
   FreeLibrary(injected_dll);
 
   if (start_server_function == NULL) 
-    return ErrorResult("Failed to obtain server start function");
+    return ErrorResult("Failed to obtain [" + function_name + "] function");
 
   // Open process
   HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (process == NULL) 
     return ErrorResult("Could not open remote process");
 
-  *thread_handle = CreateRemoteThread(
+  HANDLE t_handle = CreateRemoteThread(
     process, NULL, 0,
     (LPTHREAD_START_ROUTINE) start_server_function,
     NULL, 0, NULL
   );
+
+  if (thread_handle != NULL) *thread_handle = t_handle;
+  else CloseHandle(t_handle);
   
   CloseHandle(process);
-  if (*thread_handle == NULL) return ErrorResult("Could not start a thread with the MailSlot server"); 
-  else return OkResult("Successfully started MailSlot server on remote process");
+  if (*thread_handle == NULL) return ErrorResult("Could not start a thread with "+ function_name + "function"); 
+  else return OkResult("Successfully started " + function_name + " on remote process");
 }
-
 } // namespace injection

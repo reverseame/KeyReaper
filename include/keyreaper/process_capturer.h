@@ -1,9 +1,11 @@
 #ifndef PROCESSCAPTURER_H
 #define PROCESSCAPTURER_H
 #include <windows.h>
+#include <wincrypt.h>
 #include <vector>
 #include <tlhelp32.h>
 
+#include "injection/interproc_coms.h"
 #include "program_result.h"
 
 typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
@@ -57,6 +59,7 @@ class ProcessCapturer {
  public:
   // Constructors
   ProcessCapturer(unsigned int pid);
+  ~ProcessCapturer();
 
   // Process manipulation interface
   /**
@@ -195,10 +198,29 @@ class ProcessCapturer {
   bool IsProcessAlive() const;
 
   // INJECTION
+  /**
+   * Injects the specified DLL to the target process.
+   * @param dll_full_path Either the name or full path of the DLL
+   */
   error_handling::ProgramResult InjectDLLOnProcess(std::wstring dll_full_path);
-  error_handling::ProgramResult InjectServerOnProcess();
+  /**
+   * Injects the custom DLL with the server for exporting keys. This can be
+   * configured through the config file.
+   * This funciton DOES NOT start the server
+   */
+  error_handling::ProgramResult InjectControllerOnProcess();
   error_handling::ProgramResult StartMailSlotExporterOnServer();
   error_handling::ProgramResult StopMailSlotExporterOnServer();
+
+  /**
+   * Retrieves the key blobs of the specified keys by calling `CryptExportKey` on the remote process.
+   * This funciton handles the injection, so it is not necessary to perform it manually.
+   * @param key_handles The `HCRYPTKEY`s to be exported
+   * @param blobs [out] A reference to a vector where the resulting blobs will be placed. If the first byte
+   * is marked as 0xFF, it means that the blob failed to be exported. The order of the blobs will be the same
+   * as the order of the inputted `HCRYPTKEY`s.
+   */
+  error_handling::ProgramResult GetKeyBlobFromRemote(HCRYPTKEY key_handles, DWORD blob_type, std::vector<BYTE>& key_blob);
 
  private:
  // TODO: review
@@ -210,14 +232,24 @@ class ProcessCapturer {
   error_handling::ProgramResult InitializeExports();
   void InspectMemoryRegions();
 
+  /**
+   * Starts the controller server on process, which allows to perform specific
+   * operations on the remote process.
+   */
+  error_handling::ProgramResult StartControllerServerOnProcess();
+  error_handling::ProgramResult StopControllerServerOnProcess(bool terminate = false);
+
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;
+  custom_ipc::CustomClientV2 injection_client_;
   DWORD pid_;
   ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
   bool is_privileged_;
-  bool server_is_injected_; //  to keep track of the injection status (injected or not)
+  bool is_controller_dll_injected_; //  to keep track of the injection status (injected or not)
+  bool is_controller_server_running_; // to keep track of the controller server status
   bool is_mailslot_server_started_;
-  HANDLE server_thread_handle_;
+  HANDLE mailslot_thread_handle_;
+  HANDLE controller_server_handle_;
 };
 
 } // namespace process_manipulation

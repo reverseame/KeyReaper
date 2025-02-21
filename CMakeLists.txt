@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_SYSTEM_NAME Windows)
 project(KeyReaper VERSION 1.4.1)
@@ -62,6 +62,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tomlplusplus)
 
+FetchContent_Declare(
+    nng
+    GIT_REPOSITORY https://github.com/nanomsg/nng.git
+    GIT_TAG        v1.10.1
+)
+FetchContent_MakeAvailable(nng)
+target_include_directories(common_includes INTERFACE ${nng_SOURCE_DIR}/include)
+
 # TitanEngine
 set(TITAN_ENGINE_DIR "${CMAKE_SOURCE_DIR}/TitanEngine")
 set(TITAN_ENGINE_DLL "${TITAN_ENGINE_DIR}/TitanEngine_${ARCHITECTURE_APPEND}.dll")
@@ -92,7 +100,7 @@ add_executable(${EXECUTABLE_NAME}
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 tomlplusplus::tomlplusplus common_includes ${TITAN_ENGINE_LIB})
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng nlohmann_json CLI11::CLI11 tomlplusplus::tomlplusplus common_includes ${TITAN_ENGINE_LIB})
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 # TitanEngine DLL dependency
@@ -138,7 +146,7 @@ add_library(${LIBRARY_NAME} SHARED
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/cryptoapi_key_exporter.cc
 )
-target_link_libraries(${LIBRARY_NAME} PRIVATE common_includes)
+target_link_libraries(${LIBRARY_NAME} PRIVATE nng common_includes)
 set_target_properties(${LIBRARY_NAME} PROPERTIES OUTPUT_NAME "${LIBRARY_NAME}_${ARCHITECTURE_APPEND}")
 
 # --- Test Injector ----------------
@@ -148,7 +156,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/injector_program.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "test_client")
@@ -157,7 +165,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/test/test_client.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "test_server")
@@ -166,5 +174,5 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/test/test_server.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")

