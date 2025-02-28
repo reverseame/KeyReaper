@@ -9,7 +9,7 @@
 #include "scanners.h"
 #include "process_capturer.h"
 #include "cryptoapi.h"
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 
 using namespace std;
 using ProcessCapturer = process_manipulation::ProcessCapturer;

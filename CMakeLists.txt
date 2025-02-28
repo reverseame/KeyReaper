@@ -93,7 +93,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/key.cc
     ${SOURCE_BASE_DIR}/scanners.cc
     ${SOURCE_BASE_DIR}/key_scanner.cc
-    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
     ${SOURCE_BASE_DIR}/injection/injector.cc
     ${SOURCE_BASE_DIR}/process_capturer.cc
     ${CMAKE_CURRENT_BINARY_DIR}/main.cc
@@ -143,7 +143,7 @@ set(LIBRARY_NAME "injectable_server")
 add_library(${LIBRARY_NAME} SHARED
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/cryptoapi.cc
-    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
     ${SOURCE_BASE_DIR}/injection/cryptoapi_key_exporter.cc
 )
 target_link_libraries(${LIBRARY_NAME} PRIVATE nng common_includes)
@@ -153,7 +153,7 @@ set_target_properties(${LIBRARY_NAME} PROPERTIES OUTPUT_NAME "${LIBRARY_NAME}_${
 set(EXECUTABLE_NAME "injector")
 add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
+    ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
     ${SOURCE_BASE_DIR}/injection/injector_program.cc
 )
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)

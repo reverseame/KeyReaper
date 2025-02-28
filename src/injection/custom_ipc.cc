@@ -5,7 +5,7 @@
 #include <nng/protocol/reqrep0/rep.h>
 #include <nng/protocol/reqrep0/req.h>
 
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 
 using namespace std;
 using namespace error_handling;

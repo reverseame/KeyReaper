@@ -10,7 +10,7 @@
 #include <TitanEngine.h>
 #include "config.h"
 #include "injection/injector.h"
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <thread>
 #include "program_result.h"
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 #include "injection/injector.h"
 #include "config.h"
 

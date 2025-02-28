@@ -13,7 +13,7 @@ https://cocomelonc.github.io/tutorial/2021/09/20/malware-injection-2.html
 
 #include "program_result.h"
 #include "cryptoapi.h"
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 using namespace custom_ipc;
 using namespace error_handling;
 using namespace std;

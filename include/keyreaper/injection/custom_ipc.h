@@ -1,5 +1,5 @@
-#ifndef INTERPROCCOMS_H
-#define INTERPROCCOMS_H
+#ifndef CUSTOM_IPC_H
+#define CUSTOM_IPC_H
 
 #include <windows.h>
 #include <wincrypt.h>

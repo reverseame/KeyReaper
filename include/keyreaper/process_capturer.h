@@ -5,7 +5,7 @@
 #include <vector>
 #include <tlhelp32.h>
 
-#include "injection/interproc_coms.h"
+#include "injection/custom_ipc.h"
 #include "program_result.h"
 
 namespace nt_suspend {
