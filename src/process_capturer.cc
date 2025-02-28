@@ -225,7 +225,8 @@ bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_addre
 
 ProcessCapturer::ProcessCapturer(unsigned int pid) 
     : pid_(pid), suspended_(false), is_privileged_(false), is_controller_dll_injected_(false), 
-    is_mailslot_server_started_(false), mailslot_thread_handle_(NULL), is_controller_server_running_(false) {
+    is_mailslot_server_started_(false), mailslot_thread_handle_(NULL), is_controller_server_running_(false),
+    injection_client_(pid) {
 
   if (!IsProcessAlive()) return;
 
@@ -233,14 +234,11 @@ ProcessCapturer::ProcessCapturer(unsigned int pid)
   // std::cout << " [i] " << pr.GetResultInformation() << std::endl;
   if (pr.IsOk()) printf(" [i] Running privileged (SE_DEBUG token)\n");
   else printf(" [i] Running without privileges (could not obtain SE_DEBUG token)\n");
-  
-  // TODO: check if the process is wow64.
-  //       would work in 32 bit?
 }
 
 ProcessCapturer::~ProcessCapturer() {
-  StopControllerServerOnProcess();
-  StopMailSlotExporterOnServer();
+  cout << "[cleanup] " << StopControllerServerOnProcess().GetResultInformation() << endl;
+  cout << "[cleanup] " << StopMailSlotExporterOnServer().GetResultInformation() << endl;
   injection_client_.Close();
 }
 
@@ -455,11 +453,6 @@ error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32Thread
   return func_result;
 }
 
-void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
-  // TODO - implement ProcessCapturer::setSuspendPtr
-  throw "Not yet implemented";
-}
-
 error_handling::ProgramResult ProcessCapturer::InitializeExports() {
 
   ProgramResult func_result = OkResult("Successfully initialized all exports");
@@ -562,18 +555,19 @@ ProgramResult ProcessCapturer::StopControllerServerOnProcess(bool terminate) {
   }
 
   if (terminate) {
-    if (controller_server_handle_ == NULL) {
+    if (controller_server_handle_ == NULL) 
       return ErrorResult("The handle to the server thread is not valid");
-    }
-  
+    
     BOOL result = TerminateThread(controller_server_handle_, 0);
     if (result == 0) return ErrorResult("Could not terminate remote thread");
   
   } else { // Not terminate, but send a stop signal
-    injection_client_.SendRequest({
+    auto res = injection_client_.SendRequest({
       custom_ipc::command::kEndServer, // command
       vector<BYTE>() // data (empty)
     });
+
+    if (res.IsErr()) return res;
   }
 
   is_controller_server_running_ = false;
@@ -628,7 +622,6 @@ ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD 
   res = injection_client_.StartClient(); // OK if it's already initialized
   if (res.IsErr()) return res;
 
-  // res = injection_client_.GetKeyBlobFromRemote(key_handle, blob_type, key_blob);
   custom_ipc::KeyDataMessage key_data = { key_handle, blob_type };
   res = injection_client_.SendRequest({
     custom_ipc::command::kExportKey, // command

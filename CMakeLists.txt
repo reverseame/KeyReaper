@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_SYSTEM_NAME Windows)
-project(KeyReaper VERSION 1.4.1)
+project(KeyReaper VERSION 1.5.0)
 set(PROGRAM_NAME "KeyReaper")
 
 set(MSVC True)
@@ -155,24 +155,6 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
     ${SOURCE_BASE_DIR}/injection/injector_program.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
-set(EXECUTABLE_NAME "test_client")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
-    ${SOURCE_BASE_DIR}/injection/test/test_client.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
-set(EXECUTABLE_NAME "test_server")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/injection/interproc_coms.cc
-    ${SOURCE_BASE_DIR}/injection/test/test_server.cc
 )
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")

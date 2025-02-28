@@ -332,36 +332,45 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
         }
       }
 
+      // TODO: move this check above
       DWORD alg = key_data_struct->alg;
       // TODO: check which other CryptoAPI-supported algorithms have a private pair
-      if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN ) {
+      if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN ) { // If asymmetric
         printf(" [i] Detected an asymmetric key\n");
-        // TODO: don't export it on the remote process but here (interproc comms)
+        vector<BYTE> key_blob;
+        auto res = capturer.GetKeyBlobFromRemote(key_handle, PUBLICKEYBLOB, key_blob);
         
-        // Do a delayed initialization (to avoid injection in case there are not RSA keys)
-        // auto res = process_capturer.InjectControllerOnProcess();
-        // cout << res.GetResultInformation() << endl;
-        //if (res.IsOk()) {
-          /* 
-          res = process_capturer.StartMailSlotExporterOnServer();
-          cout << res.GetResultInformation() << endl;
-          if (res.IsOk()) {
-          custom_ipc::SendKeyHandleToMailSlot(key_handle);
-          } */
+        // Copy and update the size
+        cryptoapi::key_data_s updated_key_data = *key_data_struct;
+        updated_key_data.key_size = key_blob.size();
 
-          //auto key_blobs = vector<vector<BYTE>>();
-          // res = process_capturer.GetKeyBlobFromRemote();
-          // if (res.IsErr()) return res;
-        //}
-        // TODO create a CryptoAPI key here
+        if (res.IsOk()) {
+          ProcessCapturer::PrintMemory(key_blob.data(), key_blob.size());
+          found_keys.insert(
+            make_shared<CryptoAPIKey>(
+              CryptoAPIKey(&updated_key_data, key_blob.data(), key_handle)
+            )
+          );
+        } else cerr << res.GetResultInformation() << endl;
+
+        res = capturer.GetKeyBlobFromRemote(key_handle, PRIVATEKEYBLOB, key_blob);
+        updated_key_data.key_size = key_blob.size();
+        if (res.IsOk()) {
+          found_keys.insert(
+            make_shared<CryptoAPIKey>(
+              CryptoAPIKey(&updated_key_data, key_blob.data(), key_handle)
+            )
+          );
+        } else cerr << res.GetResultInformation() << endl;
+
+      } else { // symmetric algorithms
+        ProcessCapturer::PrintMemory((unsigned char*) ptr, 16, (ULONG_PTR) key_data_struct->key_bytes);
+        found_keys.insert(
+          make_shared<CryptoAPIKey>(
+            CryptoAPIKey(key_data_struct, (unsigned char*) ptr, key_handle)
+          )
+        );
       }
-
-      ProcessCapturer::PrintMemory((unsigned char*) ptr, 16, (ULONG_PTR) key_data_struct->key_bytes);
-      found_keys.insert(
-        make_shared<CryptoAPIKey>(
-          CryptoAPIKey(key_data_struct, (unsigned char*) ptr)
-        )
-      );
 
       search_start = search_result + byte_pattern.size();
       printf(" --\n");

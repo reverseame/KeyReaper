@@ -126,15 +126,19 @@ class Key {
 
 class CryptoAPIKey : public Key {
  public:
-  CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key);
-  ALG_ID GetALG_ID() const { return alg_id_; };
+  CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key, HCRYPTKEY oringial_handle);
+  ALG_ID GetALG_ID() const;
+  HCRYPTKEY GetOriginalHandle() const;
   bool IsSymmetricAlgorithm();
   bool IsAsymmetricAlgorithm();
 
   error_handling::ProgramResult ExportKeyAsBinary(std::string out_file) override;
 
+  bool operator==(const CryptoAPIKey& other) const;
+
  private:
   ALG_ID alg_id_;
+  HCRYPTKEY original_handle_;
   error_handling::ProgramResult ExportAsBinaryGeneric(BYTE blob_type, std::string out_file);
 };
 

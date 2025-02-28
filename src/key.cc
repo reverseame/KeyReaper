@@ -146,8 +146,9 @@ const WCHAR* GetCipherNameFromAlgID(ALG_ID alg) {
   } else return L"";
 }
 
-CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) {
+CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key, HCRYPTKEY original_handle) {
   alg_id_ = key_data->alg;
+  original_handle_ = original_handle;
   
   // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
   switch (alg_id_) {
@@ -201,8 +202,17 @@ CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key) 
   key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
 }
 
-bool CryptoAPIKey::IsSymmetricAlgorithm() {
-  return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT);
+ALG_ID CryptoAPIKey::GetALG_ID() const {
+  return alg_id_;
+}
+
+HCRYPTKEY CryptoAPIKey::GetOriginalHandle() const {
+  return original_handle_;
+}
+
+bool CryptoAPIKey::IsSymmetricAlgorithm()
+{
+    return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT);
 }
 
 bool CryptoAPIKey::IsAsymmetricAlgorithm() {
@@ -226,6 +236,10 @@ error_handling::ProgramResult CryptoAPIKey::ExportKeyAsBinary(std::string out_fi
   } else {
     return ErrorResult("Key type not recognized as symmetric or assymetric");
   }
+}
+
+bool CryptoAPIKey::operator==(const CryptoAPIKey &other) const {
+  return other.GetOriginalHandle() == GetOriginalHandle();
 }
 
 ProgramResult CryptoAPIKey::ExportAsBinaryGeneric(BYTE blob_type, string out_file) {
