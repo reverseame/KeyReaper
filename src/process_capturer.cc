@@ -8,6 +8,9 @@
 #include "key_scanner.h"
 #include "process_capturer.h"
 #include <TitanEngine.h>
+#include "config.h"
+#include "injection/injector.h"
+#include "injection/custom_ipc.h"
 using ProgramResult = error_handling::ProgramResult;
 using ErrorResult = error_handling::ErrorResult;
 using OkResult = error_handling::OkResult;
@@ -221,7 +224,9 @@ bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_addre
 }
 
 ProcessCapturer::ProcessCapturer(unsigned int pid) 
-    : pid_(pid), suspended_(false), is_privileged_(false) {
+    : pid_(pid), suspended_(false), is_privileged_(false), is_controller_dll_injected_(false), 
+    is_mailslot_server_started_(false), mailslot_thread_handle_(NULL), is_controller_server_running_(false),
+    injection_client_(pid) {
 
   if (!IsProcessAlive()) return;
 
@@ -229,9 +234,12 @@ ProcessCapturer::ProcessCapturer(unsigned int pid)
   // std::cout << " [i] " << pr.GetResultInformation() << std::endl;
   if (pr.IsOk()) printf(" [i] Running privileged (SE_DEBUG token)\n");
   else printf(" [i] Running without privileges (could not obtain SE_DEBUG token)\n");
-  
-  // TODO: check if the process is wow64.
-  //       would work in 32 bit?
+}
+
+ProcessCapturer::~ProcessCapturer() {
+  cout << "[cleanup] " << StopControllerServerOnProcess().GetResultInformation() << endl;
+  cout << "[cleanup] " << StopMailSlotExporterOnServer().GetResultInformation() << endl;
+  injection_client_.Close();
 }
 
 // TODO: add an argument for caching the thread list
@@ -445,11 +453,6 @@ error_handling::ProgramResult ProcessCapturer::KillSingleThread(DWORD th32Thread
   return func_result;
 }
 
-void ProcessCapturer::SetSuspendPtr(int ThreadSuspendFunction) {
-  // TODO - implement ProcessCapturer::setSuspendPtr
-  throw "Not yet implemented";
-}
-
 error_handling::ProgramResult ProcessCapturer::InitializeExports() {
 
   ProgramResult func_result = OkResult("Successfully initialized all exports");
@@ -534,10 +537,113 @@ void ProcessCapturer::InspectMemoryRegions() {
   }
 }
 
+ProgramResult ProcessCapturer::StartControllerServerOnProcess() {
+  if (is_controller_server_running_) return OkResult("Server already running");
+  
+  // Performs the injection if necessary
+  auto res = InjectControllerOnProcess();
+  if (res.IsErr()) return res;
+
+  res = injection::StartControllerServer(pid_, &controller_server_handle_);
+  if (res.IsOk()) is_controller_server_running_ = true;
+  return res;
+}
+
+ProgramResult ProcessCapturer::StopControllerServerOnProcess(bool terminate) {
+  if (!is_controller_server_running_) {
+    return ErrorResult("Controller server is not running");
+  }
+
+  if (terminate) {
+    if (controller_server_handle_ == NULL) 
+      return ErrorResult("The handle to the server thread is not valid");
+    
+    BOOL result = TerminateThread(controller_server_handle_, 0);
+    if (result == 0) return ErrorResult("Could not terminate remote thread");
+  
+  } else { // Not terminate, but send a stop signal
+    auto res = injection_client_.SendRequest({
+      custom_ipc::command::kEndServer, // command
+      vector<BYTE>() // data (empty)
+    });
+
+    if (res.IsErr()) return res;
+  }
+
+  is_controller_server_running_ = false;
+  controller_server_handle_ = NULL;
+  return OkResult("Stopped controller server");
+}
+
+ProgramResult ProcessCapturer::InjectDLLOnProcess(wstring dll_full_path) {
+  // TODO: check if file exists or DLL name is valid
+  return injection::InjectDLLOnProcess(pid_, dll_full_path);
+}
+
+ProgramResult ProcessCapturer::InjectControllerOnProcess() {
+  if (is_controller_dll_injected_)
+    return OkResult("Server was already injected");
+
+  auto res = injection::InjectDLLOnProcess(pid_, Config::Instance().GetKeyExtractorDLLPath());
+  if (res.IsOk()) is_controller_dll_injected_ = true;
+  return res;
+}
+
+ProgramResult ProcessCapturer::StartMailSlotExporterOnServer() {
+  auto result = injection::StartMailSlotExporter(pid_, &mailslot_thread_handle_);
+  if (result.IsOk()) is_mailslot_server_started_ = true;
+  return result;
+}
+
+ProgramResult ProcessCapturer::StopMailSlotExporterOnServer() {
+  if (!is_mailslot_server_started_) {
+    return ErrorResult("Mailslot server is not running");
+  }
+
+  if (mailslot_thread_handle_ == NULL) {
+    return ErrorResult("The handle to the server thread is not valid");
+  }
+
+  BOOL result = TerminateThread(mailslot_thread_handle_, 0);
+  if (result == 0) return ErrorResult("Could not terminate remote thread");
+  
+  is_mailslot_server_started_ = false;
+  mailslot_thread_handle_ = NULL;
+  return OkResult("Stopped Mailslot server");
+}
+
+ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& key_blob) {
+  auto res = InjectControllerOnProcess(); // OK if it's already injected
+  if (res.IsErr()) return res;
+
+  res = StartControllerServerOnProcess(); // OK if it's already running
+  if (res.IsErr()) return res;
+
+  res = injection_client_.StartClient(); // OK if it's already initialized
+  if (res.IsErr()) return res;
+
+  custom_ipc::KeyDataMessage key_data = { key_handle, blob_type };
+  res = injection_client_.SendRequest({
+    custom_ipc::command::kExportKey, // command
+    key_data.serialize() // data
+  });
+  if (res.IsErr()) return res;
+
+  custom_ipc::Response response;
+  res = injection_client_.GetResponse(response);
+  if (res.IsErr()) return res;
+  
+  if (response.code) key_blob = response.data;
+  else return ErrorResult("Could not export key blob");
+
+  return OkResult("Key blob received");
+}
+
 void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, string file_name) {
-  FILE* file = fopen(file_name.c_str(), "wb");
-  fwrite(buffer, 1, size, file);
-  fclose(file);
+  ofstream file(file_name, ios::binary);
+  if (file) {
+    file.write(reinterpret_cast<const char*>(buffer), size);
+  } else printf("Could not open file\n");
   // ProcessCapturer::PrintMemory(buffer, size);
 }
 

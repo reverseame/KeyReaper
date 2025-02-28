@@ -1,12 +1,12 @@
 #ifndef PROCESSCAPTURER_H
 #define PROCESSCAPTURER_H
 #include <windows.h>
+#include <wincrypt.h>
 #include <vector>
 #include <tlhelp32.h>
 
+#include "injection/custom_ipc.h"
 #include "program_result.h"
-
-typedef DWORD (WINAPI *ThreadSuspendFunction)(HANDLE hThread);
 
 namespace nt_suspend {
 // https://ntopcode.wordpress.com/2018/01/16/anatomy-of-the-thread-suspension-mechanism-in-windows-windows-internals/
@@ -57,6 +57,7 @@ class ProcessCapturer {
  public:
   // Constructors
   ProcessCapturer(unsigned int pid);
+  ~ProcessCapturer();
 
   // Process manipulation interface
   /**
@@ -194,21 +195,61 @@ class ProcessCapturer {
   */
   bool IsProcessAlive() const;
 
- private:
- // TODO: review
-  void SetSuspendPtr(int ThreadSuspendFunction);
+  // INJECTION
+  /**
+   * Injects the specified DLL to the target process.
+   * @param dll_full_path Either the name or full path of the DLL
+   */
+  error_handling::ProgramResult InjectDLLOnProcess(std::wstring dll_full_path);
+  /**
+   * Injects the custom DLL with the server for exporting keys. This can be
+   * configured through the config file.
+   * This funciton DOES NOT start the server
+   */
+  error_handling::ProgramResult InjectControllerOnProcess();
+  error_handling::ProgramResult StartMailSlotExporterOnServer();
+  error_handling::ProgramResult StopMailSlotExporterOnServer();
 
+  /**
+   * Retrieves the key blob of the specified key by calling `CryptExportKey` on the remote process.
+   * This funciton handles the injection and server startup, so it is not necessary to perform it manually.
+   * The remote process will try to force the export bit on the key, so even keys created without the
+   * `CRYPT_EXPORTABLE` flag will be exported, which does NOT work with private key pairs that were not
+   * flagged as exportable. Anyway, malware does activate this flag to dump the key to a file.
+   * 
+   * @param key_handle The `HCRYPTKEY` to be exported
+   * @param blob_type The type of blob format to be exported the key in. Note that not all types of blob
+   * are valid for every type of key. For example, asymmetric keys should use `PUBLICKEYBLOB` and `PRIVATEKEYBLOB`.
+   * AES keys should be exported using `PLAINTEXTKEYBLOB`.
+   * @param blob [out] A reference to a vector where the resulting blobs will be placed. If the export fails,
+   * the function returns an `ErrorResult`, including and error because the key was not exportable.
+   */
+  error_handling::ProgramResult GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, std::vector<BYTE>& key_blob);
+
+ private:
   /**
    * Function for initializing dynamically imported functions, such as `NtSuspendProcess`.
    */
   error_handling::ProgramResult InitializeExports();
   void InspectMemoryRegions();
 
+  /**
+   * Starts the controller server on process, which allows to perform specific
+   * operations on the remote process.
+   */
+  error_handling::ProgramResult StartControllerServerOnProcess();
+  error_handling::ProgramResult StopControllerServerOnProcess(bool terminate = false);
+
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;
+  custom_ipc::CustomClient injection_client_;
   DWORD pid_;
-  ThreadSuspendFunction suspendThreadPtr_;
   int suspended_;
   bool is_privileged_;
+  bool is_controller_dll_injected_; //  to keep track of the injection status (injected or not)
+  bool is_controller_server_running_; // to keep track of the controller server status
+  bool is_mailslot_server_started_;
+  HANDLE mailslot_thread_handle_;
+  HANDLE controller_server_handle_;
 };
 
 } // namespace process_manipulation

@@ -13,6 +13,7 @@
 
 #include "cryptoapi.h"
 #include "key.h"
+#include <cryptoapi.h>
 #include "program_result.h"
 using namespace key_scanner;
 
@@ -71,14 +72,6 @@ int PrintHeapInformation() {
   return func_result;
 }
 
-cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key) {
-    cryptoapi::HCRYPTKEY* hCryptKey = (cryptoapi::HCRYPTKEY*) key;
-    UINT_PTR magic_xor = (UINT_PTR) hCryptKey->magic;
-    magic_xor = magic_xor ^ MAGIC_CONSTANT;
-    cryptoapi::magic_s* ms = (cryptoapi::magic_s*) magic_xor;
-    return (cryptoapi::key_data_s*) ms->key_data;
-}
-
 void CheckAllBlockSizes(HCRYPTPROV prov) {
     SIZE_T biggest_block_len = 0;
     ALG_ID to_check_algs[] = {CALG_DES, CALG_RC2, CALG_3DES, CALG_3DES_112, CALG_DESX, CALG_AES_128, CALG_AES_192, CALG_AES_256, CALG_AES, CALG_SKIPJACK, CALG_TEK, CALG_CYLINK_MEK};
@@ -97,7 +90,7 @@ void CheckAllBlockSizes(HCRYPTPROV prov) {
             cout << "  \\Last error: " <<  error_handling::GetLastErrorAsString() << endl;
         
         } else {
-            key_data = GetKeyStruct(key);
+            key_data = key_scanner::cryptoapi::GetKeyStruct(key);
             // PrintKeyData(key);
 
             printf(" Shadow BLOCK len is %u\n", key_data->block_len);
@@ -282,8 +275,9 @@ void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
         else {
             printf("HCRYPTKEY: %08X\n", key);
             if (alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN) {
-                printf(" [i] Assymetric algorithm detected\n");
+                printf(" [i] Asymmetric algorithm detected\n");
                 data_len = 2048;
+                getchar();
 
                 result = CryptExportKey(key, NULL, PRIVATEKEYBLOB, 0, buffer2, &data_len);
                 if (result == 0) printf(" [x] Could not export the private pair\n");
@@ -297,7 +291,7 @@ void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
                 result = CryptExportKey(key, NULL, PLAINTEXTKEYBLOB, 0, buffer, &data_len);
                 if (result == 0) printf(" [x] Could not export the key\n");
                 else {
-                    cryptoapi::key_data_s* cryptkey = GetKeyStruct(key);
+                    cryptoapi::key_data_s* cryptkey = key_scanner::cryptoapi::GetKeyStruct(key);
                     BYTE* raw_key = (BYTE*) cryptkey->key_bytes;
                     printf(" - KEY BYTES: 0x%p\n", raw_key);
 
@@ -456,7 +450,7 @@ int main(int argc, char* argv[]) {
 
     // CheckAllBlockSizes(phProv);
     // GenerateKeyWithIV(phProv);
-    GenerateKeyChunck(phProv, CALG_AES_128, 1);
+    GenerateKeyChunck(phProv, CALG_RSA_KEYX, 1);
 
     // create a hash object from the CSP (cryptographic service provider)
     HCRYPTHASH hHash;

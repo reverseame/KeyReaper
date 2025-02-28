@@ -71,7 +71,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     cout << "Number of scanners: " << scanners_.size() << endl;
     for (const auto& scanner : scanners_) {
       cout << " [" << scanner_count << "/" << total_scanners << "] Scanning with: " << scanner->GetName() << endl;
-      AddKeys(scanner->Scan(buffer.data(), heap, pid_));
+      AddKeys(scanner->Scan(buffer.data(), heap, capturer_));
     }
   }
 
@@ -158,7 +158,7 @@ bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
   auto& scanner = scanners_.front();
   for (UINT u = 0; u < runs; u++) {
     QueryPerformanceCounter(&start);
-    auto found_keys = scanner->Scan(buffer.data(), heap, pid_);
+    auto found_keys = scanner->Scan(buffer.data(), heap, capturer_);
     QueryPerformanceCounter(&end);
 
     AddKeys(found_keys);
