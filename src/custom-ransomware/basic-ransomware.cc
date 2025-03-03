@@ -277,7 +277,6 @@ void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
             if (alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN) {
                 printf(" [i] Asymmetric algorithm detected\n");
                 data_len = 2048;
-                getchar();
 
                 result = CryptExportKey(key, NULL, PRIVATEKEYBLOB, 0, buffer2, &data_len);
                 if (result == 0) printf(" [x] Could not export the private pair\n");
@@ -450,7 +449,8 @@ int main(int argc, char* argv[]) {
 
     // CheckAllBlockSizes(phProv);
     // GenerateKeyWithIV(phProv);
-    GenerateKeyChunck(phProv, CALG_RSA_KEYX, 1);
+    GenerateKeyChunck(phProv, CALG_AES_128, 1);
+    getchar();
 
     // create a hash object from the CSP (cryptographic service provider)
     HCRYPTHASH hHash;

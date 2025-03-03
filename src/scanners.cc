@@ -10,6 +10,7 @@
 #include "process_capturer.h"
 #include "cryptoapi.h"
 #include "injection/custom_ipc.h"
+#include <aes.h>
 
 using namespace std;
 using ProcessCapturer = process_manipulation::ProcessCapturer;
@@ -387,12 +388,31 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
   return found_keys;
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
-  return std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
+  interrogate::interrogate_context ctx;
+  int key_sizes[] = { 128, 192, 256 };
+  auto found_keys = unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+
+  for (auto key_size : key_sizes) {
+    ctx.keysize = key_size;
+    ctx.from = 0;
+    ctx.filelen = heap_info.GetSize();
+    auto keys = interrogate::aes_search(&ctx, buffer);
+    
+    for (auto key : keys) {
+      printf("FOUND KEY: \n");
+      ProcessCapturer::PrintMemory(key.data(), key.size());
+      found_keys.insert(
+        make_shared<Key>(key.size(), CipherAlgorithm::kAES, key.data())
+      );
+    }
+  }
+
+  return found_keys;
 }
 
-ScannerVector::ScannerVector(std::unique_ptr<std::vector<std::unique_ptr<ScanStrategy>>> scanners) {
-  scanners_ = std::move(scanners);
+ScannerVector::ScannerVector(unique_ptr<vector<unique_ptr<ScanStrategy>>> scanners) {
+  scanners_ = move(scanners);
 }
 
 } // namespace key_scanner

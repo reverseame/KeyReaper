@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_SYSTEM_NAME Windows)
-project(KeyReaper VERSION 1.5.0)
+project(KeyReaper VERSION 1.6.0)
 set(PROGRAM_NAME "KeyReaper")
 
 set(MSVC True)
@@ -27,18 +27,12 @@ endif()
 
 ## Ease for includes
 add_library(common_includes INTERFACE)
+add_library(interrogate_include INTERFACE)
 target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/keyreaper)
+target_include_directories(interrogate_include INTERFACE ${PROJECT_SOURCE_DIR}/include/interrogate)
 
 # 3rd parties
 include(FetchContent)
-
-# Interrogate
-FetchContent_Declare(
-    interrogate
-    URL https://sourceforge.net/projects/interrogate/files/interrogate/0.0.4/interrogate-0.0.4-source.tar.gz/download
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(interrogate)
 
 # JSON library
 FetchContent_Declare(
@@ -91,6 +85,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/config.cc
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/key.cc
+    ${SOURCE_BASE_DIR}/interrogate/aes.cc
     ${SOURCE_BASE_DIR}/scanners.cc
     ${SOURCE_BASE_DIR}/key_scanner.cc
     ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
@@ -100,7 +95,7 @@ add_executable(${EXECUTABLE_NAME}
 )
 
 # Link nlohmann/json to your executable
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng nlohmann_json CLI11::CLI11 tomlplusplus::tomlplusplus common_includes ${TITAN_ENGINE_LIB})
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng nlohmann_json CLI11::CLI11 tomlplusplus::tomlplusplus interrogate_include common_includes ${TITAN_ENGINE_LIB})
 # Executable output
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 # TitanEngine DLL dependency
