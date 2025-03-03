@@ -390,13 +390,25 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
 
 unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
   interrogate::interrogate_context ctx;
-  ctx.keysize = 256;
-  ctx.from = 0;
-  ctx.filelen = key_buffer.size();
-  printf("Searching for a key\n");
-  printf(" BUFLEN: %u\n", key_buffer.size());
-  interrogate::aes_search(&ctx, key_buffer.data());
-  return unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+  int key_sizes[] = { 128, 192, 256 };
+  auto found_keys = unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
+
+  for (auto key_size : key_sizes) {
+    ctx.keysize = key_size;
+    ctx.from = 0;
+    ctx.filelen = heap_info.GetSize();
+    auto keys = interrogate::aes_search(&ctx, buffer);
+    
+    for (auto key : keys) {
+      printf("FOUND KEY: \n");
+      ProcessCapturer::PrintMemory(key.data(), key.size());
+      found_keys.insert(
+        make_shared<Key>(key.size(), CipherAlgorithm::kAES, key.data())
+      );
+    }
+  }
+
+  return found_keys;
 }
 
 ScannerVector::ScannerVector(unique_ptr<vector<unique_ptr<ScanStrategy>>> scanners) {
