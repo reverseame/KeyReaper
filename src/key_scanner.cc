@@ -39,7 +39,7 @@ bool ScannerFacade::IsProcessAlive() const {
   return capturer_.IsProcessAlive();
 }
 
-std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> ScannerFacade::DoScan() {
+std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> ScannerFacade::DoScan(bool extended_search_enabled) {
   printf(" [i] Starting scan\n");
   if (scanners_.size() == 0) {
     printf(" [x] No scanner selected\n");
@@ -49,7 +49,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   // Capture memory and pass it to the analyzers
 
   vector<HeapInformation> heaps;
-  ProgramResult r = capturer_.EnumerateHeaps(&heaps);
+  ProgramResult r = capturer_.EnumerateHeaps(heaps, extended_search_enabled);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     cout << GetLastErrorAsString() << endl;
@@ -126,7 +126,7 @@ void ScannerFacade::AddScanners(ScannerVector scanners) {
 
 bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
   vector<HeapInformation> heaps;
-  ProgramResult r = capturer_.EnumerateHeaps(&heaps);
+  ProgramResult r = capturer_.EnumerateHeaps(heaps);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
     cout << GetLastErrorAsString() << endl;
@@ -156,6 +156,8 @@ bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
 
   double total_scan_time = 0;
   auto& scanner = scanners_.front();
+  cout << "Scanner: " << scanner->GetName() << endl;
+
   for (UINT u = 0; u < runs; u++) {
     QueryPerformanceCounter(&start);
     auto found_keys = scanner->Scan(buffer.data(), heap, capturer_);
@@ -190,16 +192,18 @@ bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
 
   // Write the header if there's not
   // if (is_empty) {
-  // file << "Algorithm,Runs,Keys found,Keys expected,Copy Time Average(ms),Scan Time Average(ms)" << std::endl;
+  // file << "Algorithm,Runs,Keys found,Keys expected,Copy Time Average(ms),Scan Time Average(ms),Buffer Size (bytes)" << std::endl;
   // }
   // NOT WORKING??? TODO: fix
 
   file
+  << scanner->GetName()
   << "," << runs
   << "," << keys_.size()
   << "," << expected_num_of_keys
   << "," << std::fixed << std::setprecision(2) << total_copy_time / runs
   << "," << std::fixed << std::setprecision(2) << total_scan_time / runs
+  << "," << buffer.size()
   << std::endl;  
 
   file.close();

@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
   string output_json = "";
   unsigned int pid = 0;
   bool output_binary_keys = false;
-
+  bool extended_search_enabled = false;
 
   // KEY SCANNING
   CLI::App* scan_subcommand = app.add_subcommand("scan", "Scan for keys in the process. It is possible to add more than one at a time");
@@ -106,6 +106,9 @@ int main(int argc, char *argv[]) {
   scan_subcommand->add_option("-p,--pid", pid, "PID of the target process")
     ->required()
     ->check(CLI::NonNegativeNumber);
+  
+  scan_subcommand->add_flag("-x", extended_search_enabled, "Set this flag to enable improved heap enumeration. Make sure to activate it when working with big heaps (will only work with NT Heaps).")
+    ->default_val(false);
 
   scan_subcommand->add_option("--scanners", scanners, "Scanners to extract keys with")
     ->required()
@@ -177,7 +180,7 @@ int main(int argc, char *argv[]) {
     scanner.AddScanners(sb.GetScanners());
 
     printf("Starting key scan\n");
-    auto keys = scanner.DoScan();
+    auto keys = scanner.DoScan(extended_search_enabled);
 
     printf("All found keys: \n");
     unsigned int i = 1;

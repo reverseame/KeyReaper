@@ -7,7 +7,9 @@
 
 #include "key_scanner.h"
 #include "process_capturer.h"
+#include <ntdll.h>
 #include <TitanEngine.h>
+#include <winntheap.h>
 #include "config.h"
 #include "injection/injector.h"
 #include "injection/custom_ipc.h"
@@ -226,7 +228,15 @@ bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_addre
 ProcessCapturer::ProcessCapturer(unsigned int pid) 
     : pid_(pid), suspended_(false), is_privileged_(false), is_controller_dll_injected_(false), 
     is_mailslot_server_started_(false), mailslot_thread_handle_(NULL), is_controller_server_running_(false),
-    injection_client_(pid) {
+    injection_client_(pid), proc_handle_(NULL) {
+
+  HANDLE proc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+  if (proc == NULL) {
+    printf("[x] Could not open general handle to process\n");
+    proc_handle_ = NULL;
+    exit(1);
+  
+  } else proc_handle_ = proc;
 
   if (!IsProcessAlive()) return;
 
@@ -234,9 +244,22 @@ ProcessCapturer::ProcessCapturer(unsigned int pid)
   // std::cout << " [i] " << pr.GetResultInformation() << std::endl;
   if (pr.IsOk()) printf(" [i] Running privileged (SE_DEBUG token)\n");
   else printf(" [i] Running without privileges (could not obtain SE_DEBUG token)\n");
+
+  // DYNAMIC FUNCTIONS
+  HMODULE hNtDll = GetModuleHandleA("ntdll.dll");
+  if (!hNtDll) {
+    printf("[x] NTDLL could not be initialized\n");
+    fnNtQueryInformationProcess_ = NULL;
+  
+  } else {
+    fnNtQueryInformationProcess_ = (pNtQueryInformationProcess) GetProcAddress(hNtDll, "NtQueryInformationProcess");
+    fnNtQueryVirtualMemory_ = (pNtQueryVirtualMemory) GetProcAddress(hNtDll, "NtQueryVirtualMemory");
+    if (fnNtQueryInformationProcess_ == NULL || fnNtQueryVirtualMemory_ == NULL) printf("[x] Some functions could not be dynamically initalized\n");
+  }
 }
 
 ProcessCapturer::~ProcessCapturer() {
+  if (proc_handle_ != NULL) CloseHandle(proc_handle_);
   cout << "[cleanup] " << StopControllerServerOnProcess().GetResultInformation() << endl;
   cout << "[cleanup] " << StopMailSlotExporterOnServer().GetResultInformation() << endl;
   injection_client_.Close();
@@ -308,7 +331,7 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 }
 
 error_handling::ProgramResult ProcessCapturer::PauseProcessNt(bool force_pause) {
-
+  if (proc_handle_ == NULL) return ErrorResult("The handle to the process was not open");
   if (fNtPauseProcess == nullptr) {
     ProgramResult exports_result = InitializeExports();
     if (exports_result.IsErr()) {
@@ -317,15 +340,12 @@ error_handling::ProgramResult ProcessCapturer::PauseProcessNt(bool force_pause) 
   }
 
   ProgramResult func_result = OkResult("Successfully paused the process");
-
-  HANDLE process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid_);
-  NTSTATUS pause_result = fNtPauseProcess(process_handle);
+  NTSTATUS pause_result = fNtPauseProcess(proc_handle_);
   if (pause_result < 0) {
     printf("ERROR: %u", pause_result);
     func_result = ErrorResult("Could not pause process using NT");
   }
 
-  CloseHandle(process_handle);
   return func_result;
 }
 
@@ -364,19 +384,17 @@ ProgramResult ProcessCapturer::KillProcess(UINT exit_code) {
     func_result = ErrorResult(PROC_NOT_ALIVE_ERR_MSG);
 
   } else {
-    HANDLE proc_handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid_);
-    if (proc_handle == NULL) {
+    if (proc_handle_ == NULL) {
       func_result = ErrorResult(PROC_OPEN_ERR_MSG);
 
     } else {
-      bool success = TerminateProcess(proc_handle, exit_code);
+      bool success = TerminateProcess(proc_handle_, exit_code);
       if (!success) {
         func_result = ErrorResult("Could not terminate the process");
       }
     }
 
     suspended_ = false;
-    CloseHandle(proc_handle);
   }
 
   return func_result;
@@ -473,24 +491,20 @@ error_handling::ProgramResult ProcessCapturer::InitializeExports() {
 
 bool ProcessCapturer::IsProcessAlive() const {
   bool is_alive = false;
-  HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION , FALSE, pid_);
 
-  if (process_handle != NULL) {
+  if (proc_handle_ != NULL) {
     DWORD exit_code;
-    bool result = GetExitCodeProcess(process_handle, &exit_code);
+    bool result = GetExitCodeProcess(proc_handle_, &exit_code);
     if (result != 0 && exit_code == STILL_ACTIVE) {
       is_alive = true;
     }
-  }
+  } else printf("[x] Handle to process is not available\n");
 
-  CloseHandle(process_handle);
   return is_alive;
 }
 
 ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read) {
-  HANDLE process_handle = OpenProcess( PROCESS_VM_READ | PROCESS_QUERY_INFORMATION , FALSE, pid_ );
-
-  if (process_handle == NULL) {
+  if (proc_handle_ == NULL) {
     return ErrorResult(PROC_OPEN_ERR_MSG);
   }
 
@@ -499,7 +513,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
   ProgramResult func_result = OkResult("Data copied");
 
   *bytes_read = !NULL; // don't init at zero (NULL), otherwise the call won't (over)write this variable with the number of bytes read
-  BOOL result = ReadProcessMemory(process_handle, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
+  BOOL result = ReadProcessMemory(proc_handle_, start, reinterpret_cast<LPVOID>(buffer), size, bytes_read);
   if (result == 0) {
     func_result = ErrorResult( "Could not read process' memory. Windows error: " + error_handling::GetLastErrorAsString() );
 
@@ -510,8 +524,7 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
     }
   }
 
-  printf("  > COPY: [0x%p-0x%08X]\n", start, (ULONG_PTR) start + size - 1);
-  CloseHandle(process_handle);
+  // printf("  > COPY: [0x%p-0x%08X]\n", start, (ULONG_PTR) start + size - 1);
   return func_result;
 }
 
@@ -519,13 +532,12 @@ ProgramResult ProcessCapturer::GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* 
 void ProcessCapturer::InspectMemoryRegions() {
   MEMORY_BASIC_INFORMATION mbi;
   LPVOID address = 0;
-  HANDLE proc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid_);
-  if (proc == NULL) {
+  if (proc_handle_ == NULL) {
     printf(" [x] Could not open a HANDLE to the process.\n");
     return;
   }
 
-  while (VirtualQueryEx(proc, address, &mbi, sizeof(mbi))) {
+  while (VirtualQueryEx(proc_handle_, address, &mbi, sizeof(mbi))) {
     printf("Base Address: 0x%p | Size: 0x%lx | State: 0x%x | Protect: 0x%x\n",
             mbi.BaseAddress, mbi.RegionSize, mbi.State, mbi.Protect);
 
@@ -573,6 +585,36 @@ ProgramResult ProcessCapturer::StopControllerServerOnProcess(bool terminate) {
   is_controller_server_running_ = false;
   controller_server_handle_ = NULL;
   return OkResult("Stopped controller server");
+}
+
+ProgramResult ProcessCapturer::CopyPEB(void* peb) {
+  if (proc_handle_ == NULL) return ErrorResult("The handle to the process is not available");
+  
+  void* peb_address = GetPEBLocation();
+  if (peb != NULL) {
+    SIZE_T bytes_read = 0;
+    auto buffer = vector<BYTE>(sizeof(PEB));
+    ZeroMemory(buffer.data(), sizeof(PEB));
+
+    BOOL result = ReadProcessMemory(proc_handle_, peb_address, buffer.data(), sizeof(PEB), &bytes_read);
+    if (result) {
+      if (bytes_read != buffer.size()) buffer.resize(bytes_read);
+      memcpy_s(peb, sizeof(PEB), buffer.data(), buffer.size());
+      return OkResult("PEB successfully copied");
+
+    } else return ErrorResult("Could not read remote process memory");
+  } else return ErrorResult("Could get PEB location");
+}
+
+void* ProcessCapturer::GetPEBLocation() {
+  if (proc_handle_ == NULL) return nullptr;
+  if (fnNtQueryInformationProcess_ == NULL) return nullptr;
+
+  PROCESS_BASIC_INFORMATION pbi;
+  NTSTATUS status = fnNtQueryInformationProcess_(proc_handle_, ProcessBasicInformation, &pbi, sizeof(pbi), NULL);
+
+  if (status == 0) return pbi.PebBaseAddress;
+  else return nullptr;
 }
 
 ProgramResult ProcessCapturer::InjectDLLOnProcess(wstring dll_full_path) {
@@ -647,23 +689,66 @@ void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, stri
   // ProcessCapturer::PrintMemory(buffer, size);
 }
 
-ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heaps) {
-  // printf("Getting an overview of the memory regions:\n");
-  // InspectMemoryRegions();
-  // printf("========================\n\n");
+ProgramResult ProcessCapturer::ExtendedHeapSearch(vector<HeapInformation> &heaps) {
+  PEB peb; 
+  ZeroMemory(&peb, sizeof(peb));
+  auto res = CopyPEB(&peb);
+  if (res.IsErr()) return res;
   
-  printf("Getting heaps\n");
+  // Get the base addresses of the heaps
+  SIZE_T bytes_read;
+  auto heaps_base_addresses = vector<void*>(peb.NumberOfHeaps);
+  res = GetMemoryChunk(peb.ProcessHeaps, peb.NumberOfHeaps * sizeof(void*), (BYTE*) heaps_base_addresses.data(), &bytes_read);
+  if (res.IsErr()) return res;
+  sort(heaps_base_addresses.begin(), heaps_base_addresses.end()); // to ensure that we start looking from the lowest
 
-  HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid_);
-  if (!process) return ErrorResult("Failed to open process handle");
+  LPVOID address = heaps_base_addresses[0]; // start the search at the lowest heap
+  auto buffer = vector<BYTE>(sizeof(nt_heap::HEAP_SEGMENT)); // allocate space for copying the heap segment
+  while (true) {
+    MEMORY_BASIC_INFORMATION mbi;
+    if (fnNtQueryVirtualMemory_(proc_handle_, address, MemoryBasicInformation, &mbi, sizeof(mbi), NULL) != 0) {
+      break;
+    } // Stop if querying fails (end of memory space)
 
+    /*
+    if (mbi.Type != MEM_PRIVATE) { // IMAGE (DLL) OR MAPPED
+      printf("[%p] Skipping image or mapped file\n", mbi.BaseAddress); 
+    
+    } else if (mbi.State != MEM_COMMIT) { // RESERVED OR FREE
+      printf("[%p] Skipping over not commited section\n", mbi.BaseAddress); 
+
+    } else if (mbi.Protect & PAGE_GUARD) { // STACK
+      printf("[%p] Skipping page with guard\n", mbi.BaseAddress);
+    */
+    
+    if (mbi.Type == MEM_PRIVATE && mbi.State == MEM_COMMIT && !(mbi.Protect & PAGE_GUARD)) {
+      ZeroMemory(buffer.data(), sizeof(nt_heap::HEAP_SEGMENT)); // clear previous buffer contents
+      SIZE_T bytes_read;
+      auto result = GetMemoryChunk(mbi.BaseAddress, sizeof(nt_heap::HEAP_SEGMENT), buffer.data(), &bytes_read);
+
+      if (result.IsOk() && bytes_read == sizeof(nt_heap::HEAP_SEGMENT)) {
+        nt_heap::PHEAP_SEGMENT heap_segment = (nt_heap::PHEAP_SEGMENT) buffer.data();
+        if ((void*) heap_segment->BaseAddress == mbi.BaseAddress) {
+          heaps.push_back(
+            HeapInformation((ULONG_PTR) address, GetRegionSize(proc_handle_, (ULONG_PTR) address))
+          );
+        }
+      } else printf("[x] Error copying the remote heap segment\n");
+    }
+
+    // next region
+    address = (PVOID)((SIZE_T) mbi.BaseAddress + mbi.RegionSize);
+  }
+  return OkResult("Heaps enumerated successfully");
+}
+
+ProgramResult ProcessCapturer::SimpleHeapSearch(vector<HeapInformation>& heaps) {
   HEAPLIST32 hl;
   HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
   hl.dwSize = sizeof(HEAPLIST32);
 
   if ( hHeapSnap == INVALID_HANDLE_VALUE ) {
     printf ("CreateToolhelp32Snapshot failed (%d)\n", GetLastError());
-    CloseHandle(process);
     return ErrorResult("Could not open handle to snapshot");
   }
 
@@ -676,11 +761,11 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
 
       if( Heap32First(&he, pid_, hl.th32HeapID )) {
         SIZE_T original_block_amount = 0;
-        auto base = GetRegionStart(process, he.dwAddress);
-        auto size = GetRegionSize(process, he.dwAddress);
+        auto base = GetRegionStart(proc_handle_, he.dwAddress);
+        auto size = GetRegionSize(proc_handle_, he.dwAddress);
 
         if (size != 0 && base != 0) {
-          heaps->push_back(
+          heaps.push_back(
             HeapInformation(base, size)
           );
         } else printf(" [x] Failed to acquire heap region size or base address\n");
@@ -695,18 +780,22 @@ ProgramResult ProcessCapturer::EnumerateHeaps(std::vector<HeapInformation> *heap
   }
    
   CloseHandle(hHeapSnap);
-  CloseHandle(process);
   return func_result;
 }
 
+ProgramResult ProcessCapturer::EnumerateHeaps(vector<HeapInformation>& heaps, bool extended_search) {
+  printf("Getting heaps\n");
+
+  if (extended_search) return ExtendedHeapSearch(heaps); // v2  ==  Reads the memory regions and searches for heap structures
+  else return SimpleHeapSearch(heaps); // v1  ==  Enumerates the heaps with a HEAP snapshot (CreateToolhelp32Snapshot)
+}
+
 ProgramResult ProcessCapturer::CopyHeapData(HeapInformation heap_to_copy, vector<BYTE>* buffer) { 
-  HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid_);
-  if (!process) return ErrorResult("Failed to open process handle");
+  if (!proc_handle_) return ErrorResult("Failed to open process handle");
 
   buffer->resize(heap_to_copy.GetSize());
-  MemReadDumb(process, heap_to_copy.GetBaseAddress(), buffer->data(), buffer->size());
+  MemReadDumb(proc_handle_, heap_to_copy.GetBaseAddress(), buffer->data(), buffer->size());
 
-  CloseHandle(process);
   return OkResult("Heap copied succcessfully");
 }
 

@@ -28,6 +28,7 @@ endif()
 ## Ease for includes
 add_library(common_includes INTERFACE)
 add_library(interrogate_include INTERFACE)
+target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/ntdll)
 target_include_directories(common_includes INTERFACE ${PROJECT_SOURCE_DIR}/include/keyreaper)
 target_include_directories(interrogate_include INTERFACE ${PROJECT_SOURCE_DIR}/include/interrogate)
 

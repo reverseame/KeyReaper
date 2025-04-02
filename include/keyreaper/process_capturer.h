@@ -5,6 +5,8 @@
 #include <vector>
 #include <tlhelp32.h>
 
+#include "ntdll.h"
+#include "winntheap.h"
 #include "injection/custom_ipc.h"
 #include "program_result.h"
 
@@ -14,8 +16,14 @@ typedef _Return_type_success_(return >= 0) LONG NTSTATUS;
 
 typedef NTSTATUS(NTAPI *pNtSuspendProcess)(
   HANDLE ProcessHandle
-); // Undocumented NTDLL function
+);
 }
+
+typedef NTSTATUS (NTAPI* pNtQueryVirtualMemory)(
+  HANDLE, PVOID, int, PVOID, SIZE_T, PSIZE_T);
+
+typedef NTSTATUS (NTAPI* pNtQueryInformationProcess)(
+  HANDLE, int, PVOID, ULONG, PULONG);
 
 namespace process_manipulation {
 
@@ -150,7 +158,7 @@ class ProcessCapturer {
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
   void WriteBufferToFile(unsigned char* buffer, SIZE_T size, std::string file_name);
 
-  error_handling::ProgramResult EnumerateHeaps(std::vector<HeapInformation>* heaps);
+  error_handling::ProgramResult EnumerateHeaps(std::vector<HeapInformation>& heaps, bool extended_search = false);
 
   /**
    * From the information about the heap, copies the whole heap to a buffer.
@@ -226,6 +234,13 @@ class ProcessCapturer {
    */
   error_handling::ProgramResult GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, std::vector<BYTE>& key_blob);
 
+  /**
+   * Returns a copy of the Process Environment Block of the target process
+   * @param peb A pointer to a PEB structure
+   */
+  error_handling::ProgramResult CopyPEB(void* peb);
+  void* GetPEBLocation();
+
  private:
   /**
    * Function for initializing dynamically imported functions, such as `NtSuspendProcess`.
@@ -240,6 +255,17 @@ class ProcessCapturer {
   error_handling::ProgramResult StartControllerServerOnProcess();
   error_handling::ProgramResult StopControllerServerOnProcess(bool terminate = false);
 
+    /**
+   * Looks for heaps by enumerating the memory regions of the process and matching 
+   * for the HEAP_ENTRY structure
+   * @param heaps (OUT) vector where the heap region base and size will be placed
+   */
+  error_handling::ProgramResult ExtendedHeapSearch(std::vector<HeapInformation>& heaps);
+  error_handling::ProgramResult SimpleHeapSearch(std::vector<HeapInformation>& heaps);
+
+  HANDLE proc_handle_;
+  pNtQueryInformationProcess fnNtQueryInformationProcess_;
+  pNtQueryVirtualMemory fnNtQueryVirtualMemory_;
   static nt_suspend::pNtSuspendProcess fNtPauseProcess;
   custom_ipc::CustomClient injection_client_;
   DWORD pid_;

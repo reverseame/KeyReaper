@@ -1,6 +1,5 @@
 #include <memory>
 #include <windows.h>
-#include <winternl.h>
 #include <functional>
 #include <algorithm>
 #include <iostream>
@@ -135,6 +134,7 @@ vector<BYTE> CryptoAPIScan::GetCryptoAPIFunctions() {
   return byte_pattern;
 }
 
+/*
 // KEY MANUAL EXTRACTION TEST
 typedef NTSTATUS (NTAPI *PFN_NTDEVICEIOCONTROLFILE)(
   HANDLE FileHandle,
@@ -150,10 +150,10 @@ typedef NTSTATUS (NTAPI *PFN_NTDEVICEIOCONTROLFILE)(
 );
 
 void GetPrivateRSAPair(unsigned char* input_buffer, HeapInformation heap_info) {
-/*
-  1. Search for "RSA2" and copy the bytes
-  2. Perform the same call as the CryptoAPI 
-  */
+
+  // 1. Search for "RSA2" and copy the bytes
+  // 2. Perform the same call as the CryptoAPI 
+  
  HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
   if (!hNtdll) {
     printf("Failed to get handle to ntdll.dll\n");
@@ -229,6 +229,8 @@ void GetPrivateRSAPair(unsigned char* input_buffer, HeapInformation heap_info) {
   ProcessCapturer::PrintMemory(search_result, rsa2_size, 0);
   getchar();
 }
+
+*/
 
 void InjectExtractKeys(unordered_set<HCRYPTKEY> key_handles) {
   for (auto key : key_handles) {

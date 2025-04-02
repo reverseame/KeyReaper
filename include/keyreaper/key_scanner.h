@@ -38,7 +38,7 @@ class ScannerFacade {
 
   // Query
   bool IsProcessAlive() const;
-  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> DoScan();
+  std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> DoScan(bool extended_search_enabled);
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> GetKeys();  
   error_handling::ProgramResult ExportKeysToJSON(std::string output_json);
   error_handling::ProgramResult ExportKeysToBinary();
