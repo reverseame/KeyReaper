@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_SYSTEM_NAME Windows)
-project(KeyReaper VERSION 1.6.0)
+project(KeyReaper VERSION 1.7.0)
 set(PROGRAM_NAME "KeyReaper")
 
 set(MSVC True)
