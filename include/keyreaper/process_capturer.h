@@ -32,12 +32,12 @@ ULONG_PTR GetRegionStart(HANDLE process, ULONG_PTR valid_address_in_region);
 SIZE_T GetRegionSize(HANDLE hProcess, ULONG_PTR heapBase);
 bool MemReadDumb(HANDLE proc_handle, UINT_PTR BaseAddress, void* Buffer, SIZE_T Size);
 
-class HeapInformation {
+class HeapSegment {
  public:
-  HeapInformation(ULONG_PTR base_address, SIZE_T size) :
+  HeapSegment(ULONG_PTR base_address, SIZE_T size) :
       base_address_(base_address), size_(size) {};
   /**
-   * Retrieves the size of the heap, excluding the top chunk
+   * Retrieves the size of the heap region
    */
   SIZE_T GetSize() const;
   ULONG_PTR GetBaseAddress() const;
@@ -158,7 +158,7 @@ class ProcessCapturer {
   error_handling::ProgramResult GetMemoryChunk(LPCVOID start, SIZE_T size, BYTE* buffer, SIZE_T* bytes_read);
   void WriteBufferToFile(unsigned char* buffer, SIZE_T size, std::string file_name);
 
-  error_handling::ProgramResult EnumerateHeaps(std::vector<HeapInformation>& heaps, bool extended_search = false);
+  error_handling::ProgramResult EnumerateHeaps(std::vector<HeapSegment>& heaps, bool extended_search = false);
 
   /**
    * From the information about the heap, copies the whole heap to a buffer.
@@ -178,7 +178,7 @@ class ProcessCapturer {
    *                  supply a pointer. The size of the buffer will be the same as the heap.
    * 
    */
-  error_handling::ProgramResult CopyHeapData(HeapInformation heap_to_copy, std::vector<BYTE>* buffer);
+  error_handling::ProgramResult CopyHeapData(HeapSegment heap_to_copy, std::vector<BYTE>* buffer);
 
   // Privileges
   error_handling::ProgramResult ObtainSeDebug();
@@ -260,8 +260,8 @@ class ProcessCapturer {
    * for the HEAP_ENTRY structure
    * @param heaps (OUT) vector where the heap region base and size will be placed
    */
-  error_handling::ProgramResult ExtendedHeapSearch(std::vector<HeapInformation>& heaps);
-  error_handling::ProgramResult SimpleHeapSearch(std::vector<HeapInformation>& heaps);
+  error_handling::ProgramResult ExtendedHeapSearch(std::vector<HeapSegment>& heaps);
+  error_handling::ProgramResult SimpleHeapSearch(std::vector<HeapSegment>& heaps);
 
   HANDLE proc_handle_;
   pNtQueryInformationProcess fnNtQueryInformationProcess_;

@@ -84,6 +84,9 @@
         "variant": "cpp",
         "xtree": "cpp",
         "complex": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "condition_variable": "cpp",
+        "future": "cpp",
+        "stack": "cpp"
     }
 }

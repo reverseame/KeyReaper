@@ -113,7 +113,7 @@ add_executable(${EXECUTABLE_NAME}
     ${SOURCE_BASE_DIR}/program_result.cc
     ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
 )
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes )
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json common_includes )
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
 
 set(EXECUTABLE_NAME "ransy_decryptor")

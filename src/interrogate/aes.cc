@@ -284,7 +284,7 @@ vector<vector<BYTE>> aes_search(interrogate_context *ctx, unsigned char *buffer)
       found_keys.push_back(key);
 		}
 	}
-  if (ctx->count == 0) printf("Did not found any keys\n");
+  // if (ctx->count == 0) printf("Did not find any keys\n");
 
   return found_keys;
 }

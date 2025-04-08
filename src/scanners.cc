@@ -13,7 +13,7 @@
 
 using namespace std;
 using ProcessCapturer = process_manipulation::ProcessCapturer;
-using HeapInformation = process_manipulation::HeapInformation;
+using HeapSegment = process_manipulation::HeapSegment;
 
 
 namespace key_scanner {
@@ -81,7 +81,7 @@ void CryptoAPIScan::InitializeCryptoAPI() {
   }
 }
 
-unordered_set<HCRYPTKEY> CryptoAPIScan::GetHCRYPTKEYs(unsigned char *input_buffer, process_manipulation::HeapInformation heap_info) {
+unordered_set<HCRYPTKEY> CryptoAPIScan::GetHCRYPTKEYs(unsigned char *input_buffer, process_manipulation::HeapSegment heap_info) {
   auto found_hcryptkeys = unordered_set<HCRYPTKEY>();
 
   InitializeCryptoAPI();
@@ -149,7 +149,7 @@ typedef NTSTATUS (NTAPI *PFN_NTDEVICEIOCONTROLFILE)(
   ULONG OutputBufferLength
 );
 
-void GetPrivateRSAPair(unsigned char* input_buffer, HeapInformation heap_info) {
+void GetPrivateRSAPair(unsigned char* input_buffer, HeapSegment heap_info) {
 
   // 1. Search for "RSA2" and copy the bytes
   // 2. Perform the same call as the CryptoAPI 
@@ -238,7 +238,7 @@ void InjectExtractKeys(unordered_set<HCRYPTKEY> key_handles) {
   }
 }
 
-unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
+unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> CryptoAPIScan::Scan(unsigned char *input_buffer, HeapSegment heap_info, ProcessCapturer& capturer) const {
   unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> found_keys = unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();
 
   // TEST
@@ -390,7 +390,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
   return found_keys;
 }
 
-unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapInformation heap_info, ProcessCapturer& capturer) const {
+unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> RoundKeyScan::Scan(unsigned char *buffer, HeapSegment heap_info, ProcessCapturer& capturer) const {
   interrogate::interrogate_context ctx;
   int key_sizes[] = { 128, 192, 256 };
   auto found_keys = unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>();

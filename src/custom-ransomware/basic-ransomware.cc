@@ -3,10 +3,12 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <fstream>
 #include <locale>
 #include <codecvt>
 #pragma comment(lib, "advapi32.lib") // crypto api
@@ -32,6 +34,8 @@ void PrintKeyData(HCRYPTKEY hKey);
 int PrintHeapInformation() {
   printf("Getting heap\n");
 
+  printf("Default heap: 0x%p\n", (void*) GetProcessHeap());
+
   DWORD pid = GetCurrentProcessId();
   printf("Self PID: %u\n", pid);
 
@@ -52,7 +56,7 @@ int PrintHeapInformation() {
       he.dwSize = sizeof(HEAPENTRY32);
 
       if( Heap32First(&he, pid, hl.th32HeapID )) {
-        printf( "\nHeap ID: %zd\n", hl.th32HeapID );
+        printf( "\nHeap ID: 0x%p\n", (void*) hl.th32HeapID );
         size_t total_size = 0;
         do {
           total_size += he.dwBlockSize;
@@ -70,6 +74,13 @@ int PrintHeapInformation() {
   CloseHandle(hHeapSnap);
   printf("Self PID: %u\n", pid);
   return func_result;
+}
+
+void PrintBytes(BYTE* buffer, SIZE_T size) {
+    for (unsigned int u = 0; u < size; u++) {
+        printf(" %02X", buffer[u]);
+        if (u % 16 == 15) printf("\n");
+    } printf("\n");
 }
 
 void CheckAllBlockSizes(HCRYPTPROV prov) {
@@ -262,6 +273,116 @@ void Test() {
 }
 */
 
+void FillWithRandomData(void* ptr, size_t size) {
+    if (!ptr) return;
+    unsigned char* data = static_cast<unsigned char*>(ptr);
+    for (size_t i = 0; i < size; ++i) {
+        data[i] = rand() % 256;  // Fill with random bytes
+    }
+}
+
+vector<void*> CreateHeapNoise(unsigned int noise_blocks, unsigned int min_block_size, unsigned int max_block_size) {
+    printf("[i] Adding noise to the heap: 0x%p\n", (void*) GetProcessHeap());
+    vector<void*> allocations;
+    allocations.reserve(noise_blocks);
+
+    for (unsigned int i = 0; i < noise_blocks; i++) {
+        size_t block_size = min_block_size + (rand() % (max_block_size - min_block_size + 1)); // Random block size
+        void* ptr = HeapAlloc(GetProcessHeap(), 0, block_size);
+        if (ptr) {
+            FillWithRandomData(ptr, block_size);
+            allocations.push_back(ptr);
+        } else printf(" [!] Allocation failed\n");
+    }
+
+    // Introduce fragmentation by freeing random allocations
+    for (size_t i = 0; i < allocations.size(); i += (rand() % 3 + 1)) {
+        BOOL res = HeapFree(GetProcessHeap(), 0, allocations[i]);
+        if (res) allocations.erase(allocations.begin() + i);
+    }
+
+    return allocations; 
+}
+
+#include "key.h"
+#include <nlohmann/json.hpp>
+void ExportKeysToJSON(vector<key_scanner::CryptoAPIKey> keys, string output_json) {
+    cout << "[i] Exporting keys to " << output_json << endl;
+    nlohmann::json json_data;
+    for (auto key : keys) {
+        json_data[key.GetKeyAsString()] = { 
+            {"algorithm", key.GetAlgorithm()}, 
+            {"size", key.GetSize()} 
+        };
+    }
+    ofstream file(output_json);
+    file << json_data.dump(2);  // Pretty print
+    file.close();
+}
+
+bool ExportKeyToBuffer(HCRYPTKEY key, vector<BYTE>& key_buffer) {
+    auto buffer = vector<BYTE>(1000);
+    DWORD data_len = buffer.size();
+    BOOL status = CryptExportKey(key, NULL, PLAINTEXTKEYBLOB, 0, buffer.data(), &data_len);
+    if (status) {
+        if (data_len - 0xC > 0) {
+            buffer.resize(data_len);
+            key_buffer.resize(data_len - 0xC);
+            memcpy(key_buffer.data(), buffer.data() + 0xC, data_len - 0xC);
+            return true;
+        }
+    } else cout << error_handling::GetLastErrorAsString() << endl;
+    return false;
+}
+
+HCRYPTKEY GeneratePredictableKey(HCRYPTPROV provider, ALG_ID alg, string deriver) {
+    HCRYPTKEY hKey = NULL;
+    HCRYPTHASH hHash = NULL;
+
+    // Create hash object
+    if (!CryptCreateHash(provider, CALG_SHA_256, 0, 0, &hHash)) {
+        cerr << " [x] Error creating hash: " << error_handling::GetLastErrorAsString() << endl;
+        return NULL;
+    }
+
+    // Hash the input data
+    if (!CryptHashData(hHash, reinterpret_cast<const BYTE*>(deriver.data()), deriver.size(), 0)) {
+        cerr << " [x] Data hashing failed: " << error_handling::GetLastErrorAsString() << endl;
+        CryptDestroyHash(hHash);
+        return NULL;
+    }
+
+    // Derive a key from the hash
+    if (!CryptDeriveKey(provider, alg, hHash, CRYPT_EXPORTABLE, &hKey)) {
+        cerr << " [x] Derive key failed: " << error_handling::GetLastErrorAsString() << endl;
+        CryptDestroyHash(hHash);
+        return NULL;
+    }
+
+    printf("> Key derived from string hash: %s\n", deriver.c_str());
+    printf(" * HCRYPTKEY: 0x%p\n", (void*) hKey);
+
+    DWORD data_len;
+    BOOL res = CryptExportKey(hKey, NULL, PLAINTEXTKEYBLOB, 0, NULL, &data_len);
+    if (res) {
+        auto buffer = vector<BYTE>(data_len);
+        res = CryptExportKey(hKey, NULL, PLAINTEXTKEYBLOB, 0, buffer.data(), &data_len);
+        buffer.resize(data_len);
+        if (res) {
+            printf(" * BYTES:\n");
+            DWORD difference = sizeof(BLOBHEADER) + sizeof(DWORD);
+            // PrintBytes(buffer.data(), data_len); // the whole key blob
+            PrintBytes(buffer.data() + difference, data_len - difference); // just the key
+        }
+        else printf(" [!] Could not export the key\n");
+    }
+
+    // Cleanup: Destroy the hash object
+    CryptDestroyHash(hHash);
+
+    return hKey;
+}
+
 void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
     HCRYPTKEY key;
     BOOL result;
@@ -313,6 +434,14 @@ void GenerateKeyChunck(HCRYPTPROV provider, ALG_ID alg, DWORD number_of_keys) {
         } printf("\n");
     }
     getchar();
+}
+
+HCRYPTKEY GenerateRandomKey(HCRYPTPROV prov, ALG_ID alg) {
+    HCRYPTKEY key;
+    BOOL result = CryptGenKey(prov, alg, CRYPT_EXPORTABLE, &key);
+
+    if (!result) return NULL;
+    else return key;
 }
 
 void TestKeys(HCRYPTPROV provider) {
@@ -396,6 +525,121 @@ void PrintKeyData(HCRYPTKEY hKey) {
     }; printf("\n");
 }
 
+void RunTest1(HCRYPTPROV prov) {
+    srand(static_cast<unsigned int>(time(nullptr))); // seed
+    auto allocations = CreateHeapNoise(1000, 128, 512);
+    if (allocations.size() == 0) printf("[x] Failed to allocate noise in the heap\n");
+
+    auto key1 = GeneratePredictableKey(prov, CALG_AES_256, "password");
+    auto allocations2 = CreateHeapNoise(100, 512, 1024);
+    auto key2 = GeneratePredictableKey(prov, CALG_RC4, "testString");
+    auto allocations3 = CreateHeapNoise(100, 128, 512);
+    PrintHeapInformation();
+
+    cout << "Press enter to cleanup noise ";
+    getchar();
+    // free allocations
+    for (auto alloc : allocations) HeapFree(GetProcessHeap(), 0, alloc);
+    for (auto alloc : allocations2) HeapFree(GetProcessHeap(), 0, alloc);
+    for (auto alloc : allocations3) HeapFree(GetProcessHeap(), 0, alloc);
+    CryptDestroyKey(key1);
+    CryptDestroyKey(key2);
+}
+
+/**
+ * Creates random size heap noise and an `num_of_keys` number of keys
+ */
+typedef struct _BLOBHEADER {
+    BYTE   bType;
+    BYTE   bVersion;
+    WORD   reserved;
+    ALG_ID aiKeyAlg;
+};
+
+typedef struct _PLAINTEXTKEYBLOB {
+    _BLOBHEADER hdr;
+    DWORD      dwKeySize;
+    BYTE       rgbKeyData[];
+} *PPLAINTEXTKEYBLOB;
+
+void RunTest2(HCRYPTPROV prov, DWORD num_of_keys, DWORD num_noise_blocks) {
+    srand(static_cast<unsigned int>(time(nullptr))); // seed
+    ALG_ID algorithm = CALG_RSA_KEYX;
+
+    HANDLE heap_snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, GetCurrentProcessId());
+    if (heap_snapshot != INVALID_HANDLE_VALUE) {
+        HEAPLIST32 heap;
+        heap.dwSize = sizeof(HEAPLIST32);
+        if ( Heap32ListFirst(heap_snapshot, &heap) ) {
+            do {
+                printf("Heap ID (base address): 0x%p\n", (void*) heap.th32HeapID);
+                heap.dwSize = sizeof(HEAPLIST32);
+            } while( Heap32ListNext(heap_snapshot, &heap) );
+        }
+    }
+
+    // auto allocations = CreateHeapNoise(1000, 128, 512);
+    // if (allocations.size() == 0) printf("[x] Failed to allocate noise in the heap\n");
+
+    auto noise_blocks = vector<vector<void*>>();
+    auto key_handles = vector<HCRYPTKEY>();
+    
+    for (unsigned int u = 0; u < num_of_keys; u++) {
+        noise_blocks.push_back(CreateHeapNoise(num_noise_blocks, 128, 1024));
+        auto key = GenerateRandomKey(prov, algorithm);
+        printf("Key generated: %p\n", (void*) key);
+        if (key == NULL) printf("[x] Error generating a key\n");
+        else key_handles.push_back(key);
+        noise_blocks.push_back(CreateHeapNoise(num_noise_blocks, 128, 1024));
+    }
+
+    if (algorithm != CALG_RSA_KEYX) {
+        auto keys = vector<key_scanner::CryptoAPIKey>();
+        for (auto key_handle : key_handles) {
+            auto kdata = cryptoapi::GetKeyStruct(key_handle);
+
+            auto buffer = vector<BYTE>();
+            auto ok = ExportKeyToBuffer(key_handle, buffer);
+            keys.push_back(
+                key_scanner::CryptoAPIKey(
+                    kdata, buffer.data(), key_handle
+                )
+            );
+        }
+        ExportKeysToJSON(keys, "keys_ransy.json");
+    }
+
+    printf("\n\n=================================\n");
+    cout << "Press enter to cleanup noise ";
+    getchar();
+    // free allocations
+    for (auto alloc_list : noise_blocks) {
+        for (auto alloc : alloc_list) {
+            HeapFree(GetProcessHeap(), 0, alloc);
+        } alloc_list.clear();
+    } noise_blocks.clear(); 
+
+    for (auto key : key_handles) {
+        CryptDestroyKey(key);
+    } key_handles.clear();
+}
+
+void RunTest3(HCRYPTPROV prov) {
+    ifstream file("test.txt");
+    if (!file.is_open()) {
+        printf("Failed to open the file\n");
+        return;
+    }
+
+    unsigned int num_of_keys = 0;
+    unsigned int num_of_noise_blocks = 0;
+    file >> num_of_keys >> num_of_noise_blocks;
+    file.close();
+
+    RunTest2(prov, num_of_keys, num_of_noise_blocks);
+    getchar();
+}
+
 //params: <path> <is decrypt mode> <key>
 int main(int argc, char* argv[]) {
 
@@ -427,7 +671,7 @@ int main(int argc, char* argv[]) {
     printf("Key: %s\n", alternate_key);
     printf("Key len: %zx, %zd\n", alt_len, alt_len);
     printf("Key size: %zx | %zd\n", key_size, key_size);
-    std::wcout << "Input path: " << path << endl;
+    wcout << "Input path: " << path << endl;
     printf("----\n");
 
     DWORD dwStatus = 0;
@@ -449,7 +693,10 @@ int main(int argc, char* argv[]) {
 
     // CheckAllBlockSizes(phProv);
     // GenerateKeyWithIV(phProv);
-    GenerateKeyChunck(phProv, CALG_AES_128, 1);
+    // GenerateKeyChunck(phProv, CALG_AES_128, 100);
+    // RunTest1(phProv);
+    // RunTest2(phProv, 100, 200);
+    RunTest3(phProv);
     getchar();
 
     // create a hash object from the CSP (cryptographic service provider)

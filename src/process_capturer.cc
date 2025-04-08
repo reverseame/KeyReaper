@@ -192,24 +192,23 @@ SIZE_T GetRegionSize(HANDLE hProcess, ULONG_PTR heapBase) {
 
 nt_suspend::pNtSuspendProcess ProcessCapturer::fNtPauseProcess = nullptr; // static class member
 
-SIZE_T HeapInformation::GetSize() const {
+SIZE_T HeapSegment::GetSize() const {
   return size_;
 }
 
-ULONG_PTR HeapInformation::GetBaseAddress() const
-{
-    return base_address_;
+ULONG_PTR HeapSegment::GetBaseAddress() const {
+  return base_address_;
 }
 
-ULONG_PTR HeapInformation::GetLastAddress() const {
+ULONG_PTR HeapSegment::GetLastAddress() const {
   return base_address_ + size_;
 }
 
-bool HeapInformation::IsAddressInHeap(ULONG_PTR pointer) const {
+bool HeapSegment::IsAddressInHeap(ULONG_PTR pointer) const {
   return pointer <= GetLastAddress() && pointer >= GetBaseAddress();
 };
 
-bool HeapInformation::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const {
+bool HeapSegment::RebaseAddress(ULONG_PTR* pointer, ULONG_PTR new_base_address) const {
   if (!IsAddressInHeap(*pointer)) {
     
     // printf(" > Pointer: %p\n", (void*) *pointer);
@@ -689,7 +688,7 @@ void ProcessCapturer::WriteBufferToFile(unsigned char* buffer, SIZE_T size, stri
   // ProcessCapturer::PrintMemory(buffer, size);
 }
 
-ProgramResult ProcessCapturer::ExtendedHeapSearch(vector<HeapInformation> &heaps) {
+ProgramResult ProcessCapturer::ExtendedHeapSearch(vector<HeapSegment> &heaps) {
   PEB peb; 
   ZeroMemory(&peb, sizeof(peb));
   auto res = CopyPEB(&peb);
@@ -730,7 +729,7 @@ ProgramResult ProcessCapturer::ExtendedHeapSearch(vector<HeapInformation> &heaps
         nt_heap::PHEAP_SEGMENT heap_segment = (nt_heap::PHEAP_SEGMENT) buffer.data();
         if ((void*) heap_segment->BaseAddress == mbi.BaseAddress) {
           heaps.push_back(
-            HeapInformation((ULONG_PTR) address, GetRegionSize(proc_handle_, (ULONG_PTR) address))
+            HeapSegment((ULONG_PTR) address, GetRegionSize(proc_handle_, (ULONG_PTR) address))
           );
         }
       } else printf("[x] Error copying the remote heap segment\n");
@@ -742,7 +741,7 @@ ProgramResult ProcessCapturer::ExtendedHeapSearch(vector<HeapInformation> &heaps
   return OkResult("Heaps enumerated successfully");
 }
 
-ProgramResult ProcessCapturer::SimpleHeapSearch(vector<HeapInformation>& heaps) {
+ProgramResult ProcessCapturer::SimpleHeapSearch(vector<HeapSegment>& heaps) {
   HEAPLIST32 hl;
   HANDLE hHeapSnap = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, pid_);
   hl.dwSize = sizeof(HEAPLIST32);
@@ -766,7 +765,7 @@ ProgramResult ProcessCapturer::SimpleHeapSearch(vector<HeapInformation>& heaps) 
 
         if (size != 0 && base != 0) {
           heaps.push_back(
-            HeapInformation(base, size)
+            HeapSegment(base, size)
           );
         } else printf(" [x] Failed to acquire heap region size or base address\n");
       } else printf(" [x] Failed to query one of the heaps");
@@ -783,14 +782,14 @@ ProgramResult ProcessCapturer::SimpleHeapSearch(vector<HeapInformation>& heaps) 
   return func_result;
 }
 
-ProgramResult ProcessCapturer::EnumerateHeaps(vector<HeapInformation>& heaps, bool extended_search) {
+ProgramResult ProcessCapturer::EnumerateHeaps(vector<HeapSegment>& heaps, bool extended_search) {
   printf("Getting heaps\n");
 
   if (extended_search) return ExtendedHeapSearch(heaps); // v2  ==  Reads the memory regions and searches for heap structures
   else return SimpleHeapSearch(heaps); // v1  ==  Enumerates the heaps with a HEAP snapshot (CreateToolhelp32Snapshot)
 }
 
-ProgramResult ProcessCapturer::CopyHeapData(HeapInformation heap_to_copy, vector<BYTE>* buffer) { 
+ProgramResult ProcessCapturer::CopyHeapData(HeapSegment heap_to_copy, vector<BYTE>* buffer) { 
   if (!proc_handle_) return ErrorResult("Failed to open process handle");
 
   buffer->resize(heap_to_copy.GetSize());

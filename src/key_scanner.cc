@@ -48,7 +48,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   // Main functionality
   // Capture memory and pass it to the analyzers
 
-  vector<HeapInformation> heaps;
+  vector<HeapSegment> heaps;
   ProgramResult r = capturer_.EnumerateHeaps(heaps, extended_search_enabled);
   cout << r.GetResultInformation() << endl;
   if (!r.IsOk()) {
@@ -59,7 +59,7 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
   printf("[i] Prev key count: %zu\n\n", keys_.size());
 
   size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
-  for(HeapInformation heap : heaps) {
+  for(HeapSegment heap : heaps) {
     printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
 
     auto buffer = vector<BYTE>();
@@ -125,51 +125,82 @@ void ScannerFacade::AddScanners(ScannerVector scanners) {
 }
 
 bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
-  vector<HeapInformation> heaps;
-  ProgramResult r = capturer_.EnumerateHeaps(heaps);
-  cout << r.GetResultInformation() << endl;
-  if (!r.IsOk()) {
-    cout << GetLastErrorAsString() << endl;
-    return false;
-  }
-
   LARGE_INTEGER start, end, frequency;
   QueryPerformanceFrequency(&frequency);
 
-  auto heap = heaps[0]; // SCAN ONLY THE DEFAULT HEAP
-  double total_copy_time = 0;
-  size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
-  for(UINT u = 0; u < runs; u++) {
-    printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
-    auto buffer = vector<BYTE>();
-    QueryPerformanceCounter(&start);
-    ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
-    QueryPerformanceCounter(&end);
-    double milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
-    total_copy_time += milliseconds;
-
-    cout << "Copy result: " <<  result.GetResultInformation() << endl;
-  }
-  
-  auto buffer = vector<BYTE>();
-  ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
-
-  double total_scan_time = 0;
-  auto& scanner = scanners_.front();
+  auto& scanner = scanners_.front(); // use only the first scanner
   cout << "Scanner: " << scanner->GetName() << endl;
 
-  for (UINT u = 0; u < runs; u++) {
+  double total_scan_time = 0, total_copy_time = 0, extended_heap_time = 0, milliseconds;
+  size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size(), total_heap_size = 0;
+
+  // STANDARD HEAP SCAN
+  for(UINT u = 0; u < runs; u++) {
+    printf("[%u/%u] HEAP ENUM & COPY (SHORT)\n", u+1, runs);
+    auto buffer = vector<BYTE>();
     QueryPerformanceCounter(&start);
-    auto found_keys = scanner->Scan(buffer.data(), heap, capturer_);
+
+    // Enumerate the heaps
+    vector<HeapSegment> heaps;
+    capturer_.EnumerateHeaps(heaps);
+
+    // Scan the heaps
+    for (auto heap : heaps) {
+      capturer_.CopyHeapData(heap, &buffer);
+    }
+
+    QueryPerformanceCounter(&end);
+    milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
+    total_copy_time += milliseconds;
+  }
+
+  // EXTENDED SEARCH TEST
+  for (UINT u = 0; u < runs;  u++) {
+    printf("[%u/%u] HEAP ENUM & COPY (EXTENDED)\n", u+1, runs);
+    QueryPerformanceCounter(&start); // crono start
+
+    // Enumerate the heaps
+    auto heaps_extended = vector<HeapSegment>();
+    capturer_.EnumerateHeaps(heaps_extended, true);
+    
+    // Copy the heaps
+    auto buffer = vector<BYTE>();
+    for (auto heap_data : heaps_extended) {
+      capturer_.CopyHeapData(heap_data, &buffer);
+    }
+
+    QueryPerformanceCounter(&end); // crono end
+    milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
+    extended_heap_time += milliseconds;
+
+
+    // SCAN TEST
+    keys_.clear(); // clear the keys found to avoid the set insertions to slow down
+    QueryPerformanceCounter(&start);
+    for (auto heap : heaps_extended) {
+      auto found_keys = scanner->Scan(buffer.data(), heap, capturer_);
+      AddKeys(found_keys);
+    }
     QueryPerformanceCounter(&end);
 
-    AddKeys(found_keys);
-
-    double milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
-    cout << "Scan millis: " << milliseconds << std::endl;
+    milliseconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000.0;
+    // cout << "Scan millis: " << milliseconds << std::endl;
     total_scan_time += milliseconds;
   }
 
+  auto heaps = vector<HeapSegment>();
+  capturer_.EnumerateHeaps(heaps, true);
+  for (auto heap : heaps) {
+    // HEAP SIZE
+    total_heap_size += heap.GetSize();
+    // NORMAL SCAN
+    auto buffer = vector<BYTE>();
+    capturer_.CopyHeapData(heap, &buffer);
+    auto keys = scanner->Scan(buffer.data(), heap, capturer_);
+    AddKeys(keys);
+  }
+
+  // NUMBER OF KEYS
   if (keys_.size() != expected_num_of_keys) {
     cout << " [!] Mismatched number of keys." << endl;
     cout << "    * Expected: " << expected_num_of_keys << endl;
@@ -192,7 +223,7 @@ bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
 
   // Write the header if there's not
   // if (is_empty) {
-  // file << "Algorithm,Runs,Keys found,Keys expected,Copy Time Average(ms),Scan Time Average(ms),Buffer Size (bytes)" << std::endl;
+  // file << "Algorithm,Runs,Keys found,Keys expected,Extended Time Average(ms),Copy Time Average(ms),Scan Time Average(ms),Buffer Size (bytes)" << std::endl;
   // }
   // NOT WORKING??? TODO: fix
 
@@ -201,9 +232,10 @@ bool ScannerFacade::StressTest(UINT runs, UINT expected_num_of_keys) {
   << "," << runs
   << "," << keys_.size()
   << "," << expected_num_of_keys
+  << "," << std::fixed << std::setprecision(2) << extended_heap_time / runs
   << "," << std::fixed << std::setprecision(2) << total_copy_time / runs
   << "," << std::fixed << std::setprecision(2) << total_scan_time / runs
-  << "," << buffer.size()
+  << "," << total_heap_size
   << std::endl;  
 
   file.close();
