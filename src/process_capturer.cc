@@ -229,15 +229,14 @@ ProcessCapturer::ProcessCapturer(unsigned int pid)
     is_mailslot_server_started_(false), mailslot_thread_handle_(NULL), is_controller_server_running_(false),
     injection_client_(pid), proc_handle_(NULL) {
 
+  if (!IsProcessAlive()) return;
+  
   HANDLE proc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (proc == NULL) {
     printf("[x] Could not open general handle to process\n");
-    proc_handle_ = NULL;
     exit(1);
   
   } else proc_handle_ = proc;
-
-  if (!IsProcessAlive()) return;
 
   ProgramResult pr = ObtainSeDebug();
   // std::cout << " [i] " << pr.GetResultInformation() << std::endl;
@@ -491,14 +490,16 @@ error_handling::ProgramResult ProcessCapturer::InitializeExports() {
 bool ProcessCapturer::IsProcessAlive() const {
   bool is_alive = false;
 
-  if (proc_handle_ != NULL) {
+  HANDLE process_handle = OpenProcess(PROCESS_QUERY_INFORMATION , FALSE, pid_);
+  if (process_handle != NULL) {
     DWORD exit_code;
-    bool result = GetExitCodeProcess(proc_handle_, &exit_code);
+    bool result = GetExitCodeProcess(process_handle, &exit_code);
     if (result != 0 && exit_code == STILL_ACTIVE) {
       is_alive = true;
     }
-  } else printf("[x] Handle to process is not available\n");
+  }
 
+  CloseHandle(process_handle);
   return is_alive;
 }
 
