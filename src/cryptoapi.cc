@@ -14,7 +14,8 @@ cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key) {
 
 void ForceExportBit(::HCRYPTKEY key) {
   cryptoapi::key_data_s* key_data = GetKeyStruct(key);
-  key_data->flags |= CRYPT_EXPORTABLE;
+  key_data->flags |= 
+    CRYPT_EXPORTABLE | CRYPT_ARCHIVABLE;
 }
 
 } // namespace cryptoapi
