@@ -338,7 +338,7 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
       // TODO: move this check above
       DWORD alg = key_data_struct->alg;
       // TODO: check which other CryptoAPI-supported algorithms have a private pair
-      if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN ) { // If asymmetric
+      if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN || alg == CALG_DSS_SIGN || alg == CALG_DH_SF || alg == CALG_DH_EPHEM ) { // If asymmetric
         printf(" [i] Detected an asymmetric key\n");
         vector<BYTE> key_blob;
         auto res = capturer.GetKeyBlobFromRemote(key_handle, PUBLICKEYBLOB, key_blob);
