@@ -575,7 +575,7 @@ ProgramResult ProcessCapturer::StopControllerServerOnProcess(bool terminate) {
   
   } else { // Not terminate, but send a stop signal
     auto res = injection_client_.SendRequest({
-      custom_ipc::command::kEndServer, // command
+      custom_ipc::Command::kEndServer, // command
       vector<BYTE>() // data (empty)
     });
 
@@ -666,7 +666,7 @@ ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD 
 
   custom_ipc::KeyDataMessage key_data = { key_handle, blob_type };
   res = injection_client_.SendRequest({
-    custom_ipc::command::kExportKey, // command
+    custom_ipc::Command::kExportKey, // command
     key_data.serialize() // data
   });
   if (res.IsErr()) return res;
@@ -675,7 +675,7 @@ ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD 
   res = injection_client_.GetResponse(response);
   if (res.IsErr()) return res;
   
-  if (response.code) key_blob = response.data;
+  if (response.code == custom_ipc::Result::kOk) key_blob = response.data;
   else return ErrorResult("Could not export key blob");
 
   return OkResult("Key blob received");

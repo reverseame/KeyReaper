@@ -12,15 +12,15 @@
 
 namespace custom_ipc {
 
-namespace command {
-const ULONG kEndServer = 0;
-const ULONG kExportKey = 1;
-} // namespace command
+enum Command {
+  kEndServer,
+  kExportKey
+};
 
-namespace result {
-const bool kError = false;
-const bool kOk = true;
-} // namespace result
+enum Result {
+  kError,
+  kOk
+};
 
 const std::string kGenericSocketName = "ipc:///KeyReaper/";
 

@@ -65,13 +65,13 @@ void ServerLoop(CustomServer& server) {
     }
 
     switch (request.command) {
-      case command::kEndServer:
+      case Command::kEndServer:
         // ShowGUIMessage("Shutting down server");
         printf(" [SERVER] Close command received, closing server\n");
         server.Close();
         return;
       
-      case command::kExportKey:
+      case Command::kExportKey:
         cout << " [SERVER] " << ExportKeyCommand(request, server).GetResultInformation() << endl;
         break;
       
@@ -168,14 +168,15 @@ ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
   auto export_status = ForceKeyBlobExport(key_data->key_handle, key_data->blob_type, blob);
 
   if (export_status.IsErr()) {
+    cout << " [SERVER] " << export_status.GetResultInformation() << endl;
     response = {
-      result::kError, // code
+      Result::kError, // code
       vector<BYTE>() // data (empty)
     };
   
   } else {
     response = {
-      result::kOk, // code
+      Result::kOk, // code
       blob // data
     };
   }
