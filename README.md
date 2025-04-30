@@ -109,7 +109,3 @@ An example execution:
 ```
 PS C:\> .\KeyReaper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
 ```
-
-## Library
-It is not required to use this project as an executable. Instead, it is possible
-to include it as a dependency.
