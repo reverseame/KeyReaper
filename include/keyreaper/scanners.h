@@ -30,14 +30,20 @@ class CryptoAPIScan : public ScanStrategy {
   std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Scan(unsigned char* input_buffer, process_manipulation::HeapSegment heap_info, process_manipulation::ProcessCapturer& capturer) const override;
 
   static void InitializeCryptoAPI();
-  static std::vector<BYTE> GetCryptoAPIFunctions();
+  /** 
+   * From a list of function pointers, returns the pointers as a contiguous byte array
+   * @param function_list Use `rsaenh_functions` or `dssenh_functions`
+   */
+  static std::vector<BYTE> GetCryptoAPIFunctionsPattern(std::vector<uintptr_t>& function_list);
   static std::unordered_set<HCRYPTKEY> GetHCRYPTKEYs(unsigned char* input_buffer, process_manipulation::HeapSegment heap_info);
   std::string GetName() const override { return "CryptoAPI Key Scanner"; };
 
  private:
   static bool cryptoapi_functions_initialized;
-  static std::vector<uintptr_t> cryptoapi_functions;
-  static HMODULE cryptoapi_base_address;
+  static std::vector<uintptr_t> rsaenh_functions;
+  static std::vector<uintptr_t> dssenh_functions;
+  static HMODULE rsaenh_base_address;
+  static HMODULE dssenh_base_address;
 };
 
 class RoundKeyScan : public ScanStrategy {
