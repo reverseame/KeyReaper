@@ -35,7 +35,6 @@ class CryptoAPIScan : public ScanStrategy {
    * @param function_list Use `rsaenh_functions` or `dssenh_functions`
    */
   static std::vector<BYTE> GetCryptoAPIFunctionsPattern(std::vector<uintptr_t>& function_list);
-  static std::unordered_set<HCRYPTKEY> GetHCRYPTKEYs(unsigned char* input_buffer, process_manipulation::HeapSegment heap_info);
   std::string GetName() const override { return "CryptoAPI Key Scanner"; };
 
  private:

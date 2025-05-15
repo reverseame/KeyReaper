@@ -126,7 +126,8 @@ class Key {
 
 class CryptoAPIKey : public Key {
  public:
-  CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key, HCRYPTKEY oringial_handle);
+  CryptoAPIKey(ALG_ID alg, DWORD key_size, unsigned char* key, HCRYPTKEY oringial_handle);
+  CryptoAPIKey(cryptoapi::RSAENH_CRYPTKEY* key_data, unsigned char* key, HCRYPTKEY oringial_handle);
   ALG_ID GetALG_ID() const;
   HCRYPTKEY GetOriginalHandle() const;
   bool IsSymmetricAlgorithm();

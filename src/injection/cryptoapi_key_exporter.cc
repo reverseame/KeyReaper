@@ -105,7 +105,7 @@ int StartMailSlot() {
       PrintBytes(buffer);
       
       HCRYPTKEY key = *(reinterpret_cast<HCRYPTKEY*>(buffer.data()));
-      key_scanner::cryptoapi::ForceExportBit(key);
+      key_scanner::cryptoapi::ForceExportBitRsaEnh(key);
 
       printf(" [i] Exporting key: 0x%p\n", (void*) key);
       printf(" Exporting PRIVATEKEYBLOB\n");
@@ -168,7 +168,7 @@ ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
   auto export_status = ForceKeyBlobExport(key_data->key_handle, key_data->blob_type, blob);
 
   if (export_status.IsErr()) {
-    cout << " [SERVER] " << export_status.GetResultInformation() << endl;
+    printf(" [SERVER][%s] (0x%p) %s\n",((key_data->blob_type == PRIVATEKEYBLOB) ? "PRVK" : "PUBK"), key_data->key_handle, export_status.GetResultInformation().c_str());
     response = {
       Result::kError, // code
       vector<BYTE>() // data (empty)
@@ -185,7 +185,7 @@ ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
 }
 
 ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer) {
-  key_scanner::cryptoapi::ForceExportBit(key_handle);
+  key_scanner::cryptoapi::ForceExportBitRsaEnh(key_handle); // TODO: check if the key belongs to DSSENH
   printf(" [SERVER] Exporting key: 0x%p\n", (void*) key_handle);
 
   // 1. Get the necessary size
@@ -197,7 +197,7 @@ ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<B
     &data_len
   );
 
-  if (!res) return ErrorResult("Error exporting the key: " + GetLastErrorAsString());
+  if (!res) return ErrorResult("Error getting the key size: " + GetLastErrorAsString());
   
   // 2. Adjust the buffer size and get the blob
   auto blob_buffer = vector<BYTE>(data_len, 0);

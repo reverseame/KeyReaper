@@ -146,60 +146,63 @@ const WCHAR* GetCipherNameFromAlgID(ALG_ID alg) {
   } else return L"";
 }
 
-CryptoAPIKey::CryptoAPIKey(cryptoapi::key_data_s* key_data, unsigned char* key, HCRYPTKEY original_handle) {
-  alg_id_ = key_data->alg;
+CryptoAPIKey::CryptoAPIKey(ALG_ID alg, DWORD key_size, unsigned char* key, HCRYPTKEY original_handle) {
+  alg_id_ = alg;
   original_handle_ = original_handle;
-  
   // Flag information can be found here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenkey
   switch (alg_id_) {
-  case CALG_AES_128:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
-    break;
-
-  case CALG_AES_192:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
-    break;
-
-  case CALG_AES_256:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kAES));
-    break;
-
-  case CALG_DES:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kDES));
-    break;
-
-  case CALG_3DES:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::k3DES));
-    break;
-
-  case CALG_3DES_112:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::k3DES));
-    break;
-
-  case CALG_RC2:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRC2));
-    break;
+    case CALG_AES_128:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kAES));
+      break;
   
-  case CALG_RC4:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRC4));
-    break;
+    case CALG_AES_192:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kAES));
+      break;
+  
+    case CALG_AES_256:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kAES));
+      break;
+  
+    case CALG_DES:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kDES));
+      break;
+  
+    case CALG_3DES:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::k3DES));
+      break;
+  
+    case CALG_3DES_112:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::k3DES));
+      break;
+  
+    case CALG_RC2:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kRC2));
+      break;
+    
+    case CALG_RC4:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kRC4));
+      break;
+  
+    case CALG_RSA_KEYX:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kRSA));
+      break;
+  
+    case CALG_RSA_SIGN:
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kRSA));
+      break;
+  
+    default:
+      printf("  [!] Algorithm not registered. ALG_ID: %X", alg_id_);
+      SetCipherType(KeyType(key_size, CipherAlgorithm::kUnknown));
+      wcout << GetCipherNameFromAlgID(alg_id_) << endl;
+      break;
+    }
+  
+    key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_size));
+}
 
-  case CALG_RSA_KEYX:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRSA));
-    break;
-
-  case CALG_RSA_SIGN:
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kRSA));
-    break;
-
-  default:
-    printf("  [!] Algorithm not registered. ALG_ID: %X", alg_id_);
-    SetCipherType(KeyType(key_data->key_size, CipherAlgorithm::kUnknown));
-    wcout << GetCipherNameFromAlgID(alg_id_) << endl;
-    break;
-  }
-
-  key_ = make_unique<vector<unsigned char>>(vector<unsigned char>(key, key + key_data->key_size));
+CryptoAPIKey::CryptoAPIKey(cryptoapi::RSAENH_CRYPTKEY* key_data, unsigned char* key, HCRYPTKEY original_handle) 
+  : CryptoAPIKey(key_data->alg, key_data->key_size, key, original_handle) {
 }
 
 ALG_ID CryptoAPIKey::GetALG_ID() const {
@@ -210,8 +213,7 @@ HCRYPTKEY CryptoAPIKey::GetOriginalHandle() const {
   return original_handle_;
 }
 
-bool CryptoAPIKey::IsSymmetricAlgorithm()
-{
+bool CryptoAPIKey::IsSymmetricAlgorithm() {
     return ((GetALG_ID() & ALG_CLASS_DATA_ENCRYPT) == ALG_CLASS_DATA_ENCRYPT);
 }
 
