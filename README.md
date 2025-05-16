@@ -109,3 +109,8 @@ An example execution:
 ```
 PS C:\> .\KeyReaper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
 ```
+
+## Funding support
+Part of this research was supported by the Spanish National Cybersecurity Institute (INCIBE) under *Proyectos Estratégicos de Ciberseguridad -- CIBERSEGURIDAD EINA UNIZAR* and by the Recovery, Transformation and Resilience Plan funds, financed by the European Union (Next Generation).
+
+![INCIBE_logos](misc/img/INCIBE_logos.jpg)
