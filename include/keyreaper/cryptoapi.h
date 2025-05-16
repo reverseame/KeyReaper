@@ -5,14 +5,19 @@
 #include <vector>
 #include <string>
 
-namespace key_scanner {
 namespace cryptoapi {
 
 #if _WIN64
-#define MAGIC_CONSTANT 0xE35A172CD96214A0
-#elif _WIN32
-#define MAGIC_CONSTANT 0xE35A172C
+#define RSAENH_CONSTANT 0xE35A172CD96214A0 
+#define DSSENH_CONSTANT 0xA2491D83D96214A0
+#elif _WIN32 
+#define RSAENH_CONSTANT 0xE35A172C
+#define DSSENH_CONSTANT 0xA2491D83
 #endif
+
+enum CryptoAPIProvider {
+  kRsaEnh, kDssEnh
+};
 
 const std::vector<std::string> cryptoapi_function_names = {
   "CPGenKey", "CPDeriveKey", "CPDestroyKey",
@@ -21,7 +26,7 @@ const std::vector<std::string> cryptoapi_function_names = {
   "CPDuplicateKey"
 };
 
-struct key_data_s {
+struct RSAENH_CRYPTKEY {
   void *unknown;     // +0x00
   ALG_ID alg;        // +0x04 | +0x08
   uint32_t flags;    // +0x08 | +0x0C
@@ -38,8 +43,11 @@ struct key_data_s {
   DWORD block_len;   // +0x80 | +0x94
 };
 
-struct magic_s {
-  key_data_s *key_data;
+struct unk_struct {
+  RSAENH_CRYPTKEY* key_data; //rsaenh
+  void* unk2;
+	uint32_t unk3;
+	ALG_ID alg;  // dssenh
 };
 
 struct HCRYPTKEY {
@@ -54,17 +62,17 @@ struct HCRYPTKEY {
   void* CPDecrypt;
   void* CPDuplicateKey;
   HCRYPTPROV hCryptProv;
-  magic_s *magic; // XOR-ed
+  unk_struct *magic; // XOR-ed
 };
 
 /**
  * This function performs the necessary indirections
- *  to get the pointer to the CRYPTKEY struct from
+ *  to get the pointer to the RSAENH_CRYPTKEY struct from
  *  the HCRYPTKEY struct.
  * DON'T use it on a dump, as it does not calculate
  *  the offsets.
  */
-cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key);
+cryptoapi::RSAENH_CRYPTKEY* GetKeyStructRsaEnh(::HCRYPTKEY key);
 
 /**
  * This function sets the exportable bit of an HCRYPTKEY
@@ -75,9 +83,8 @@ cryptoapi::key_data_s* GetKeyStruct(::HCRYPTKEY key);
  * DO NOT use it on a dump, as it does not calculate
  *  the offsets.
  */
-void ForceExportBit(::HCRYPTKEY key);
+void ForceExportBitRsaEnh(::HCRYPTKEY key);
 
 } // namespace cryptoapi
-} // namespace key_scanner
 
 #endif // CUSTOM_CRYPTOAPI_H

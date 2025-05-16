@@ -9,6 +9,7 @@
 #include "winntheap.h"
 #include "injection/custom_ipc.h"
 #include "program_result.h"
+#include "cryptoapi.h"
 
 namespace nt_suspend {
 // https://ntopcode.wordpress.com/2018/01/16/anatomy-of-the-thread-suspension-mechanism-in-windows-windows-internals/
@@ -232,7 +233,7 @@ class ProcessCapturer {
    * @param blob [out] A reference to a vector where the resulting blobs will be placed. If the export fails,
    * the function returns an `ErrorResult`, including and error because the key was not exportable.
    */
-  error_handling::ProgramResult GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, std::vector<BYTE>& key_blob);
+  error_handling::ProgramResult GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, std::vector<BYTE>& key_blob, cryptoapi::CryptoAPIProvider provider);
 
   /**
    * Returns a copy of the Process Environment Block of the target process

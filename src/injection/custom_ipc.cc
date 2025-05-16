@@ -132,7 +132,7 @@ int CustomClient::OpenSocket() {
 
 ProgramResult CustomClient::StartClient() {
   if (is_initialized_) return OkResult("Client already started");
-  else printf("Listening on socket: %s\n", socket_name_.c_str());
+  else printf(" [i] Listening on socket: %s\n", socket_name_.c_str());
 
   int nng_res = OpenSocket();
   if (nng_res != 0) return ErrorResult("Failed to open client socket: " + string(nng_strerror(nng_res)));
@@ -249,16 +249,6 @@ void Request::deserialize_here(const std::vector<unsigned char> &buffer) {
   memcpy(data.data(), buffer.data() + sizeof(command) + sizeof(data_size), data_size);
 }
 
-/*
-  SIZE_T data_size;
-
-  memcpy(&code, buffer.data(), sizeof(code));
-  memcpy(&data_size, buffer.data() + sizeof(code), sizeof(data_size));
-  
-  data.resize(data_size);
-  memcpy(data.data(), buffer.data() + sizeof(code) + sizeof(data_size), data_size);
-*/
-
 vector<unsigned char> Response::serialize() const {
   vector<unsigned char> buffer(sizeof(code) + sizeof(SIZE_T) + data.size());
 
@@ -293,27 +283,53 @@ void Response::deserialize_here(const std::vector<unsigned char> &buffer) {
   memcpy(data.data(), buffer.data() + sizeof(code) + sizeof(data_size), data_size);
 }
 
-vector<unsigned char> KeyDataMessage::serialize() const {
-  auto buffer = vector<unsigned char>(sizeof(KeyDataMessage));
+KeyDataMessage::KeyDataMessage(HCRYPTKEY key_handle, DWORD blob_type, cryptoapi::CryptoAPIProvider provider)
+    : key_handle_(key_handle), blob_type_(blob_type), provider_(provider) {};
 
-  memcpy(buffer.data(), &key_handle, sizeof(key_handle));
-  memcpy(buffer.data() + sizeof(key_handle), &blob_type, sizeof(blob_type));
+vector<unsigned char> KeyDataMessage::Serialize() const {
+  vector<unsigned char> buffer(
+    sizeof(key_handle_) + sizeof(blob_type_) + sizeof(provider_)
+  );
+
+  unsigned char* ptr = buffer.data();
+  memcpy(ptr, &key_handle_, sizeof(key_handle_));
+  ptr += sizeof(key_handle_);
+
+  memcpy(ptr, &blob_type_, sizeof(blob_type_));
+  ptr += sizeof(blob_type_);
+
+  memcpy(ptr, &provider_, sizeof(provider_));
 
   return buffer;
 }
 
-KeyDataMessage KeyDataMessage::deserialize(const vector<unsigned char> &buffer) {
-  KeyDataMessage key_data;
+KeyDataMessage KeyDataMessage::Deserialize(const vector<unsigned char>& buffer) {
+  HCRYPTKEY key_handle;
+  DWORD blob_type;
+  cryptoapi::CryptoAPIProvider provider;
 
-  memcpy(&key_data.key_handle, buffer.data(), sizeof(key_handle));
-  memcpy(&key_data.blob_type, buffer.data() + sizeof(key_handle), sizeof(blob_type));
+  const unsigned char* ptr = buffer.data();
+  memcpy(&key_handle, ptr, sizeof(key_handle));
+  ptr += sizeof(key_handle);
 
-  return key_data;
+  memcpy(&blob_type, ptr, sizeof(blob_type));
+  ptr += sizeof(blob_type);
+
+  memcpy(&provider, ptr, sizeof(provider));
+
+  return KeyDataMessage(key_handle, blob_type, provider);
 }
 
-void KeyDataMessage::deserialize_here(const std::vector<unsigned char> &buffer) {
-  memcpy(&key_handle, buffer.data(), sizeof(key_handle));
-  memcpy(&blob_type, buffer.data() + sizeof(key_handle), sizeof(blob_type));
+void KeyDataMessage::DeserializeHere(const vector<unsigned char>& buffer) {
+  const unsigned char* ptr = buffer.data();
+
+  memcpy(&key_handle_, ptr, sizeof(key_handle_));
+  ptr += sizeof(key_handle_);
+
+  memcpy(&blob_type_, ptr, sizeof(blob_type_));
+  ptr += sizeof(blob_type_);
+
+memcpy(&provider_, ptr, sizeof(provider_));
 }
 
 } // namespace custom_ipc

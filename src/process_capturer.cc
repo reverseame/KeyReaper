@@ -654,7 +654,7 @@ ProgramResult ProcessCapturer::StopMailSlotExporterOnServer() {
   return OkResult("Stopped Mailslot server");
 }
 
-ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& key_blob) {
+ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& key_blob, cryptoapi::CryptoAPIProvider provider) {
   auto res = InjectControllerOnProcess(); // OK if it's already injected
   if (res.IsErr()) return res;
 
@@ -664,10 +664,10 @@ ProgramResult ProcessCapturer::GetKeyBlobFromRemote(HCRYPTKEY key_handle, DWORD 
   res = injection_client_.StartClient(); // OK if it's already initialized
   if (res.IsErr()) return res;
 
-  custom_ipc::KeyDataMessage key_data = { key_handle, blob_type };
+  auto key_data = custom_ipc::KeyDataMessage(key_handle, blob_type, provider);
   res = injection_client_.SendRequest({
     custom_ipc::Command::kExportKey, // command
-    key_data.serialize() // data
+    key_data.Serialize() // data
   });
   if (res.IsErr()) return res;
 

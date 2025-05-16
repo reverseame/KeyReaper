@@ -5,6 +5,7 @@
 #include <wincrypt.h>
 #include <string>
 #include <vector>
+#include <cryptoapi.h>
 
 #include <nng/nng.h>
 
@@ -24,18 +25,24 @@ enum Result {
 
 const std::string kGenericSocketName = "ipc:///KeyReaper/";
 
-struct KeyDataMessage {
-  HCRYPTKEY key_handle;
-  DWORD blob_type;
+class KeyDataMessage {
+ public:
+  KeyDataMessage(HCRYPTKEY key_handle, DWORD blob_type, cryptoapi::CryptoAPIProvider provider);
 
-  std::vector<unsigned char> serialize() const;
-  static KeyDataMessage deserialize(const std::vector<unsigned char>& buffer);
-  /**
-   * This function will deserialize the buffer and overwrite the
-   * contents of the struct. It is suggested to use over an empty struct.
-   */
-  void deserialize_here(const std::vector<unsigned char>& buffer);
-};
+  std::vector<unsigned char> Serialize() const;
+  static KeyDataMessage Deserialize(const std::vector<unsigned char>& buffer);
+  void DeserializeHere(const std::vector<unsigned char>& buffer);
+
+  // Optional: Getters if you want encapsulation
+  HCRYPTKEY GetKeyHandle() const { return key_handle_; }
+  DWORD GetBlobType() const { return blob_type_; }
+  cryptoapi::CryptoAPIProvider GetProvider() const { return provider_; }
+
+ private:
+  HCRYPTKEY key_handle_;
+  DWORD blob_type_;
+  cryptoapi::CryptoAPIProvider provider_;
+ };
 
 struct Request {
   unsigned int command;
