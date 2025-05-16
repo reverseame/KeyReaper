@@ -192,9 +192,9 @@ CryptoAPIKey::CryptoAPIKey(ALG_ID alg, DWORD key_size, unsigned char* key, HCRYP
       break;
   
     default:
-      printf("  [!] Algorithm not registered. ALG_ID: %X", alg_id_);
+      printf("  Algorithm not registered. ALG_ID: 0x%X ", alg_id_);
       SetCipherType(KeyType(key_size, CipherAlgorithm::kUnknown));
-      wcout << GetCipherNameFromAlgID(alg_id_) << endl;
+      wcout << "(" << GetCipherNameFromAlgID(alg_id_) << ")" << endl;
       break;
     }
   

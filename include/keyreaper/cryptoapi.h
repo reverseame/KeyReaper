@@ -5,13 +5,14 @@
 #include <vector>
 #include <string>
 
-namespace key_scanner {
 namespace cryptoapi {
 
 #if _WIN64
-#define MAGIC_CONSTANT 0xE35A172CD96214A0
-#elif _WIN32
-#define MAGIC_CONSTANT 0xE35A172C
+#define RSAENH_CONSTANT 0xE35A172CD96214A0 
+#define DSSENH_CONSTANT 0xA2491D83D96214A0
+#elif _WIN32 
+#define RSAENH_CONSTANT 0xE35A172C
+#define DSSENH_CONSTANT 0xA2491D83
 #endif
 
 enum CryptoAPIProvider {
@@ -85,6 +86,5 @@ cryptoapi::RSAENH_CRYPTKEY* GetKeyStructRsaEnh(::HCRYPTKEY key);
 void ForceExportBitRsaEnh(::HCRYPTKEY key);
 
 } // namespace cryptoapi
-} // namespace key_scanner
 
 #endif // CUSTOM_CRYPTOAPI_H

@@ -221,28 +221,28 @@ void InjectExtractKeys(unordered_set<HCRYPTKEY> key_handles) {
   }
 }
 
-void ExtractRemoteKey(HCRYPTKEY key_handle, unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>& key_set, ProcessCapturer& capturer) {
+void ExtractRemoteKey(HCRYPTKEY key_handle, DWORD blob_type, cryptoapi::CryptoAPIProvider provider, unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction>& key_set, ProcessCapturer& capturer) {
   vector<BYTE> key_blob;
-  auto res = capturer.GetKeyBlobFromRemote(key_handle, PUBLICKEYBLOB, key_blob);
-  BLOBHEADER* blob = reinterpret_cast<BLOBHEADER*>(key_blob.data());
-
+  auto res = capturer.GetKeyBlobFromRemote(key_handle, blob_type, key_blob, provider);
+  
   if (res.IsOk()) {
+    BLOBHEADER* blob = reinterpret_cast<BLOBHEADER*>(key_blob.data());
+    // printf("BLOB DATA:\n * ALG_ID: %X\n", blob->aiKeyAlg);
+    // ProcessCapturer::PrintMemory(key_blob.data(), key_blob.size());
     key_set.insert(
       make_shared<CryptoAPIKey>(
         // TODO: replace the key_blob.size() for the actual key size
         CryptoAPIKey(blob->aiKeyAlg, key_blob.size(), key_blob.data(), key_handle)
       )
     );
-  } printf(" [!][PUBK] (0x%p) %s\n", (void*) key_handle, res.GetResultInformation().c_str());
+  } 
 
-  res = capturer.GetKeyBlobFromRemote(key_handle, PRIVATEKEYBLOB, key_blob);
-  if (res.IsOk()) {
-    key_set.insert(
-      make_shared<CryptoAPIKey>(
-        CryptoAPIKey(blob->aiKeyAlg, key_blob.size(), key_blob.data(), key_handle)
-      )
-    );
-  } printf(" [!][PRVK] (0x%p) %s\n", (void*) key_handle, res.GetResultInformation().c_str());
+  printf(" [%s][%s] (0x%p) %s\n",
+      res.IsOk() ? "i" : "x",
+      blob_type == PUBLICKEYBLOB ? "PUBK" : 
+      blob_type == PRIVATEKEYBLOB ? "PRVK" :
+      blob_type == PLAINTEXTKEYBLOB ? "PLAIN" : "UNKN",
+    (void*) key_handle, res.GetResultInformation().c_str());
 }
 
 unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> ExtractKeys(unordered_set<HCRYPTKEY>& key_handles, unsigned char* input_buffer, HeapSegment heap_info, ProcessCapturer& capturer, cryptoapi::CryptoAPIProvider provider) {
@@ -258,8 +258,16 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Extra
     auto raw_key = vector<BYTE>();
 
     cryptoapi::HCRYPTKEY* h_crypt_key = reinterpret_cast<cryptoapi::HCRYPTKEY*>(address);
-    ULONG_PTR unk_struct = (ULONG_PTR) (h_crypt_key->magic) ^ MAGIC_CONSTANT; // virtual address
 
+    ULONG_PTR magic_constant;
+    if (provider == cryptoapi::kDssEnh) magic_constant = DSSENH_CONSTANT;
+    else if (provider == cryptoapi::kRsaEnh) magic_constant = RSAENH_CONSTANT;
+    else {
+      printf(" [x] Invalid provider, aborting\n");
+      return found_keys;
+    }
+
+    ULONG_PTR unk_struct = (ULONG_PTR) (h_crypt_key->magic) ^ magic_constant; // virtual address
     cryptoapi::unk_struct* unkown_struct_ptr = NULL;
 
     if (!heap_info.RebaseAddress(&unk_struct, (ULONG_PTR) input_buffer)) {
@@ -280,7 +288,8 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Extra
 
     // DSSENH
     if (provider == cryptoapi::CryptoAPIProvider::kDssEnh) {
-      ExtractRemoteKey(key_handle, found_keys, capturer);
+      ExtractRemoteKey(key_handle, PRIVATEKEYBLOB, provider, found_keys, capturer);
+      ExtractRemoteKey(key_handle, PUBLICKEYBLOB, provider, found_keys, capturer);
     
     // RSAENH
     } else if (provider == cryptoapi::CryptoAPIProvider::kRsaEnh) {
@@ -305,7 +314,8 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Extra
   
       DWORD alg = key_data_struct->alg;
       if ( alg == CALG_RSA_KEYX || alg == CALG_RSA_SIGN ) { // If asymmetric
-        ExtractRemoteKey(key_handle, found_keys, capturer);
+        ExtractRemoteKey(key_handle, PRIVATEKEYBLOB, provider, found_keys, capturer);
+        ExtractRemoteKey(key_handle, PUBLICKEYBLOB, provider, found_keys, capturer);
   
       } else { // symmetric algorithms
         ptr = (ULONG_PTR) key_data_struct->key_bytes;
@@ -346,20 +356,20 @@ unordered_set<shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunction> Crypt
     auto rsaenh_key_handles = SearchHCRYPTKEYs(input_buffer, heap_info, byte_pattern);
     
     if (rsaenh_key_handles.size() != 0) {
-      printf("[i] %u RSAENH key handles found\n", rsaenh_key_handles.size());
+      printf(" [i] %u RSAENH key handles found\n", rsaenh_key_handles.size());
       auto rsaenh_keys = ExtractKeys(rsaenh_key_handles, input_buffer, heap_info, capturer, cryptoapi::CryptoAPIProvider::kRsaEnh);
       found_keys.insert(rsaenh_keys.begin(), rsaenh_keys.end());
-    } else printf("[!] No matches for RSAENH keys\n");
+    } else printf(" [!] No matches for RSAENH keys\n");
 
     // DSSENH
     byte_pattern = GetCryptoAPIFunctionsPattern(dssenh_functions);
     auto dssenh_key_handles = SearchHCRYPTKEYs(input_buffer, heap_info, byte_pattern);
 
     if (dssenh_key_handles.size() != 0) {
-      printf("[i] %u DSSENH key handles found\n", dssenh_key_handles.size());
+      printf(" [i] %u DSSENH key handles found\n", dssenh_key_handles.size());
       auto dss_keys = ExtractKeys(dssenh_key_handles, input_buffer, heap_info, capturer, cryptoapi::CryptoAPIProvider::kDssEnh);
       found_keys.insert(dss_keys.begin(), dss_keys.end());   
-    } else printf("[!] No matches for DSSENH keys\n");
+    } else printf(" [!] No matches for DSSENH keys\n");
     
   } else printf("Could not load initialize necessary CryptoAPI functions\n");
   return found_keys;

@@ -24,7 +24,7 @@ bool IsDLLLoadedOnProcess(DWORD pid, wstring w_dll_path, HANDLE process_handle) 
       WCHAR module_name[MAX_PATH];
       if (GetModuleBaseNameW(process_handle, module_array[i], module_name, sizeof(module_name) / sizeof(WCHAR))) {
         if (_wcsicmp(module_name, w_dll_path.c_str()) == 0) {
-          printf(" DLL found in process\n");
+          printf(" [i] DLL found in process\n");
           return true;
         }
       }

@@ -22,7 +22,7 @@ DWORD timeout_millis = 20000;
 
 int StartMailSlot();
 void ServerLoop(CustomServer& server);
-ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer);
+ProgramResult ExportKeyBlob(HCRYPTKEY key_handle, DWORD blob_type, bool force_export, vector<BYTE>& buffer);
 ProgramResult ExportKeyCommand(Request request, CustomServer& server);
 void PrintBytes(vector<BYTE>& buffer);
 
@@ -105,7 +105,7 @@ int StartMailSlot() {
       PrintBytes(buffer);
       
       HCRYPTKEY key = *(reinterpret_cast<HCRYPTKEY*>(buffer.data()));
-      key_scanner::cryptoapi::ForceExportBitRsaEnh(key);
+      cryptoapi::ForceExportBitRsaEnh(key);
 
       printf(" [i] Exporting key: 0x%p\n", (void*) key);
       printf(" Exporting PRIVATEKEYBLOB\n");
@@ -164,11 +164,16 @@ ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
   auto blob = vector<BYTE>();
   custom_ipc::Response response;
 
-  KeyDataMessage* key_data = (KeyDataMessage*) request.data.data();
-  auto export_status = ForceKeyBlobExport(key_data->key_handle, key_data->blob_type, blob);
+  KeyDataMessage key_data = KeyDataMessage::Deserialize(request.data);
+  bool force_export = (key_data.GetProvider() == cryptoapi::CryptoAPIProvider::kRsaEnh);
+  auto export_status = ExportKeyBlob(key_data.GetKeyHandle(), key_data.GetBlobType(), force_export, blob);
 
   if (export_status.IsErr()) {
-    printf(" [SERVER][%s] (0x%p) %s\n",((key_data->blob_type == PRIVATEKEYBLOB) ? "PRVK" : "PUBK"), key_data->key_handle, export_status.GetResultInformation().c_str());
+    printf(" [SERVER][%s] (0x%p) %s\n", 
+      ((key_data.GetBlobType() == PRIVATEKEYBLOB) ? "PRVK" : "PUBK"), 
+      (void*) key_data.GetKeyHandle(), 
+      export_status.GetResultInformation().c_str()
+    );
     response = {
       Result::kError, // code
       vector<BYTE>() // data (empty)
@@ -184,8 +189,8 @@ ProgramResult ExportKeyCommand(Request request, CustomServer& server) {
   return server.SendResponse(response);
 }
 
-ProgramResult ForceKeyBlobExport(HCRYPTKEY key_handle, DWORD blob_type, vector<BYTE>& buffer) {
-  key_scanner::cryptoapi::ForceExportBitRsaEnh(key_handle); // TODO: check if the key belongs to DSSENH
+ProgramResult ExportKeyBlob(HCRYPTKEY key_handle, DWORD blob_type, bool force_export, vector<BYTE>& buffer) {
+  if (force_export) cryptoapi::ForceExportBitRsaEnh(key_handle);
   printf(" [SERVER] Exporting key: 0x%p\n", (void*) key_handle);
 
   // 1. Get the necessary size
