@@ -9,7 +9,7 @@ class Config {
  public:
   static Config& Instance();  // Singleton accessor
 
-  error_handling::ProgramResult Load(const std::string& filename);
+  error_handling::ProgramResult Load(const std::wstring& filename);
 
   std::wstring GetKeyExtractorDLLPath() const;
 
@@ -20,7 +20,7 @@ class Config {
   Config(const Config&) = delete;
   Config& operator=(const Config&) = delete;
 
-  std::string key_extractor_dll_;
+  std::wstring key_extractor_dll_;
 };
 
 #endif  // CONFIG_H_

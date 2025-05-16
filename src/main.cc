@@ -56,9 +56,9 @@ std::string GetChoices(const std::map<std::string, EnumClass>& options_map, cons
 }
 
 bool LoadConfig() {
-  string config_file = "config.toml";
+  wstring config_file = L"config.toml";
   if (!fs::exists(config_file)) {
-    cout << "[!] Config file not found, creating a new one with the name: " << config_file << endl;
+    wcout << "[!] Config file not found, creating a new one with the name: " << config_file << endl;
     ofstream empty_file(config_file);
   }
   

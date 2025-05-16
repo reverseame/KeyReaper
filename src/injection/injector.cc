@@ -14,6 +14,14 @@ using namespace error_handling;
 
 namespace injection {
 
+wstring DllName(wstring dll_path) {
+  std::wstring::size_type pos = dll_path.find_last_of(L"\\/");
+  if (pos == std::wstring::npos)
+    return dll_path; // No path separator found, return entire string
+
+  return dll_path.substr(pos + 1);
+}
+
 bool IsDLLLoadedOnProcess(DWORD pid, wstring w_dll_path, HANDLE process_handle) {
   if (!process_handle) return false;
 
@@ -23,7 +31,7 @@ bool IsDLLLoadedOnProcess(DWORD pid, wstring w_dll_path, HANDLE process_handle) 
     for (size_t i = 0; i < (bytes_needed / sizeof(HMODULE)); i++) {
       WCHAR module_name[MAX_PATH];
       if (GetModuleBaseNameW(process_handle, module_array[i], module_name, sizeof(module_name) / sizeof(WCHAR))) {
-        if (_wcsicmp(module_name, w_dll_path.c_str()) == 0) {
+        if (_wcsicmp(module_name, DllName(w_dll_path).c_str()) == 0) {
           printf(" [i] DLL found in process\n");
           return true;
         }
