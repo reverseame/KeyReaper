@@ -3,6 +3,7 @@
 #include <psapi.h>
 #include <fstream>
 #include <tlhelp32.h>
+#include <algorithm>
 #pragma comment(lib, "Kernel32.lib")
 
 #include "key_scanner.h"
@@ -301,7 +302,22 @@ error_handling::ProgramResult ProcessCapturer::EnumerateThreads(std::vector<DWOR
   return func_result;
 }
 
-ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
+#include <vector>
+#include <algorithm>
+
+void RemoveCommonItems(std::vector<DWORD>& v1, const std::vector<DWORD>& v2) {
+  if (v2.empty()) return;
+
+  v1.erase(
+    std::remove_if(v1.begin(), v1.end(),
+      [&](int x) {
+        return std::find(v2.begin(), v2.end(), x) != v2.end();
+      }),
+    v1.end()
+  );
+}
+
+ProgramResult ProcessCapturer::PauseProcess(std::vector<DWORD> excluded_tids, bool force_pause) {
   printf("Pausing process\n");
 
   if (!force_pause && IsSuspended()) {
@@ -310,7 +326,9 @@ ProgramResult ProcessCapturer::PauseProcess(bool force_pause) {
 
   vector<DWORD> thread_list;
   ProgramResult enumeration_result = EnumerateThreads(&thread_list);
-  if (enumeration_result.IsErr()) return enumeration_result; // Retrieve error yielded
+  if (enumeration_result.IsErr()) return enumeration_result; // Retrieve error yield
+
+  RemoveCommonItems(thread_list, excluded_tids);
 
   // Errors will overwrite this variable. If there are not, the program will return this
   ProgramResult func_result = OkResult("All process' threads paused");

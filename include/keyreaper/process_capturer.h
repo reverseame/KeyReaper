@@ -82,13 +82,15 @@ class ProcessCapturer {
    * Pauses the process associated with the object by 
    * pausing all of its threads.
    * 
+   * @param excluded_tids The Thread IDs (TID) that will be
+   *        excluded from the pause.
    * @param force_pause Forces the program to pause even if 
    *        it was already suspended before, or something else
    *        resumed it. Internally, it increases the pause count 
    *        of the threads by one, so there is no drawback to
    *        this option.
    */
-  error_handling::ProgramResult PauseProcess(bool force_pause = false);
+  error_handling::ProgramResult PauseProcess(std::vector<DWORD> excluded_tids = std::vector<DWORD>(), bool force_pause = false);
 
   /**
    * Pauses the process associated with the object by using an

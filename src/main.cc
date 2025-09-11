@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
   std::vector<ScannerOptions> scanners;
   string output_json = "";
   unsigned int pid = 0;
+  std::vector<unsigned long> excluded_threads;
   bool output_binary_keys = false;
   bool extended_search_enabled = false;
 
@@ -128,6 +129,11 @@ int main(int argc, char *argv[]) {
 
 
   // TODO: THREAD HANDLING
+  scan_subcommand->add_option("-e,--exclude-threads", excluded_threads, "Thread IDs to exclude from the pause. Will not work with ntpause")
+    ->check(CLI::PositiveNumber);
+
+  process_subcommand->add_option("-e,--exclude-threads", excluded_threads, "Thread IDs to exclude from the pause. Will not work with ntpause")
+  ->check(CLI::PositiveNumber);
 
   // Macro for parsing and error checking (will exit if parsing fails)
   CLI11_PARSE(app, argc, argv);
@@ -150,7 +156,7 @@ int main(int argc, char *argv[]) {
       ProgramResult pr =
       (action_before == ActionOptions::kResume) ? scanner.ResumeProcess(true) :
       (action_before == ActionOptions::kNtPause) ? scanner.PauseProcess(PauseStrategy::NtPauseProcess) :
-      (action_before == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause) :
+      (action_before == ActionOptions::kPause) ? scanner.PauseProcess(PauseStrategy::AllThreadPause, excluded_threads) :
       (action_before == ActionOptions::kKill) ? scanner.KillProcess() :
       ErrorResult("Invalid option");
 
@@ -219,5 +225,7 @@ int main(int argc, char *argv[]) {
       printf(" [i] No post action selected\n");
     }
   }
+
+  getchar();  // TODO: remove (temporary)
   return 0;
 }

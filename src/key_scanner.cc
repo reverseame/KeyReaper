@@ -17,10 +17,10 @@ ProgramResult ScannerFacade::KillProcess(UINT exit_code) {
 }
 
 // Proxy method
-ProgramResult ScannerFacade::PauseProcess(PauseStrategy strategy, bool force_pause) {
+ProgramResult ScannerFacade::PauseProcess(PauseStrategy strategy, vector<DWORD> excluded_tids, bool force_pause) {
   switch (strategy) {
     case PauseStrategy::AllThreadPause:
-      return capturer_.PauseProcess(force_pause);
+      return capturer_.PauseProcess(excluded_tids, force_pause);
 
     case PauseStrategy::NtPauseProcess:
       return capturer_.PauseProcessNt(force_pause);
