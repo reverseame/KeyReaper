@@ -33,7 +33,7 @@ class ScannerFacade {
 
   // Proxy methods for handling the process
   error_handling::ProgramResult KillProcess(UINT exit_code = 0);
-  error_handling::ProgramResult PauseProcess(PauseStrategy strategy, bool force_pause = false);
+  error_handling::ProgramResult PauseProcess(PauseStrategy strategy, std::vector<DWORD> excluded_tids = std::vector<DWORD>(), bool force_pause = false);
   error_handling::ProgramResult ResumeProcess(bool force_resume = false);
 
   // Query
