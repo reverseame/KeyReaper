@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SOURCE_BASE_DIR "${CMAKE_SOURCE_DIR}/src")
 
+option(TEST_PROGRAMS "Build extra tools for testing" OFF)
+
 # Output files to bin directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -106,34 +108,6 @@ add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/TitanEngine.dll
 )
 
-set(EXECUTABLE_NAME "ransy")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/key.cc
-    ${SOURCE_BASE_DIR}/cryptoapi.cc
-    ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json common_includes )
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
-set(EXECUTABLE_NAME "ransy_decryptor")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/key.cc
-    ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/decryptors/PoCDcryptor/poc-decryptor.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes)
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
-# --- Cryptography: Next Generation Dummy Ransomware -----
-set(EXECUTABLE_NAME "next_gen_ransy")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/custom-ransomware/basic-CNG-ransomware.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
-
-
 # --- Injected DLL -----------------
 set(LIBRARY_NAME "injectable_server")
 add_library(${LIBRARY_NAME} SHARED
@@ -145,12 +119,42 @@ add_library(${LIBRARY_NAME} SHARED
 target_link_libraries(${LIBRARY_NAME} PRIVATE nng common_includes)
 set_target_properties(${LIBRARY_NAME} PROPERTIES OUTPUT_NAME "${LIBRARY_NAME}_${ARCHITECTURE_APPEND}")
 
-# --- Test Injector ----------------
-set(EXECUTABLE_NAME "injector")
-add_executable(${EXECUTABLE_NAME}
-    ${SOURCE_BASE_DIR}/program_result.cc
-    ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
-    ${SOURCE_BASE_DIR}/injection/injector_program.cc
-)
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+if(TEST_PROGRAMS)
+    set(EXECUTABLE_NAME "ransy")
+    add_executable(${EXECUTABLE_NAME}
+        ${SOURCE_BASE_DIR}/key.cc
+        ${SOURCE_BASE_DIR}/cryptoapi.cc
+        ${SOURCE_BASE_DIR}/program_result.cc
+        ${SOURCE_BASE_DIR}/custom-ransomware/basic-ransomware.cc
+    )
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json common_includes )
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+    set(EXECUTABLE_NAME "ransy_decryptor")
+    add_executable(${EXECUTABLE_NAME}
+        ${SOURCE_BASE_DIR}/key.cc
+        ${SOURCE_BASE_DIR}/program_result.cc
+        ${SOURCE_BASE_DIR}/decryptors/PoCDcryptor/poc-decryptor.cc
+    )
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann_json CLI11::CLI11 common_includes)
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+    # --- Cryptography: Next Generation Dummy Ransomware -----
+    set(EXECUTABLE_NAME "next_gen_ransy")
+    add_executable(${EXECUTABLE_NAME}
+        ${SOURCE_BASE_DIR}/custom-ransomware/basic-CNG-ransomware.cc
+    )
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE common_includes)
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+
+    # --- Test Injector ----------------
+    set(EXECUTABLE_NAME "injector")
+    add_executable(${EXECUTABLE_NAME}
+        ${SOURCE_BASE_DIR}/program_result.cc
+        ${SOURCE_BASE_DIR}/injection/custom_ipc.cc
+        ${SOURCE_BASE_DIR}/injection/injector_program.cc
+    )
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE nng common_includes)
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES OUTPUT_NAME "${EXECUTABLE_NAME}_${ARCHITECTURE_APPEND}")
+endif()
