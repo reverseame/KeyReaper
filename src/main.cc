@@ -226,6 +226,5 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  getchar();  // TODO: remove (temporary)
   return 0;
 }
