@@ -89,7 +89,7 @@ ProgramResult ScannerFacade::ExportKeysToJSON(string output_json) {
   cout << "[i] Exporting keys to " << output_json << endl;
   nlohmann::json json_data;
   for (auto &key : keys_) {
-    json_data[key->GetKeyAsString()] = { {"algorithm", key->GetAlgorithm()}, {"size", key->GetSize()} };
+    json_data += key->GetKeyAsJSON();
   }
 
   ofstream file(output_json);

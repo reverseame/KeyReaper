@@ -240,6 +240,31 @@ error_handling::ProgramResult CryptoAPIKey::ExportKeyAsBinary(std::string out_fi
   }
 }
 
+nlohmann::json Key::GetKeyAsJSON() const {
+  nlohmann::json json_data;
+  json_data[GetKeyAsString()] = { 
+    {"algorithm", GetAlgorithm()}, 
+    {"size", GetSize()} 
+  };
+  return json_data;
+}
+
+nlohmann::json CryptoAPIKey::GetKeyAsJSON() const {
+  nlohmann::json json_data;
+  constexpr auto fmt =
+    (sizeof(void*) == 8) ? "0x{:016X}" :
+    (sizeof(void*) == 4) ? "0x{:08X}" :
+                           "{:p}";
+  auto formatted_handle = format(fmt, (uintptr_t)GetOriginalHandle());
+
+  json_data[GetKeyAsString()] = { 
+    {"algorithm", GetAlgorithm()}, 
+    {"size", GetSize()},
+    {"handle",  formatted_handle}
+  };
+  return json_data;
+}
+
 bool CryptoAPIKey::operator==(const CryptoAPIKey &other) const {
   return other.GetOriginalHandle() == GetOriginalHandle();
 }

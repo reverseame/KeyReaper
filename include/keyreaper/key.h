@@ -1,6 +1,8 @@
 #ifndef KEY_H
 #define KEY_H
 
+#include <nlohmann/json.hpp>
+
 #include <string>
 #include <unordered_map>
 #include <cstddef>
@@ -110,6 +112,7 @@ class Key {
   virtual std::string GetKeyAsString() const;
 
   virtual error_handling::ProgramResult ExportKeyAsBinary(std::string out_file);
+  virtual nlohmann::json GetKeyAsJSON() const;
 
   bool operator==(const Key& other) const;
 
@@ -134,6 +137,7 @@ class CryptoAPIKey : public Key {
   bool IsAsymmetricAlgorithm();
 
   error_handling::ProgramResult ExportKeyAsBinary(std::string out_file) override;
+  nlohmann::json GetKeyAsJSON() const override;
 
   bool operator==(const CryptoAPIKey& other) const;
 
