@@ -58,16 +58,20 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
 
   printf("[i] Prev key count: %zu\n\n", keys_.size());
 
-  size_t scanner_count = 1, heap_counter = 1, total_scanners = scanners_.size();
+  size_t scanner_count = 1;
+  size_t heap_counter  = 1;
+  size_t total_heap_size = 0;
+  size_t total_scanners = scanners_.size();
   for(HeapSegment heap : heaps) {
     printf("============\nHeap: %zu/%zu [@%p | %p]\n", heap_counter++, heaps.size(), (void*) heap.GetBaseAddress(), (void*) heap.GetLastAddress());
+    total_heap_size += heap.GetSize();
 
     auto buffer = vector<BYTE>();
     ProgramResult result = capturer_.CopyHeapData(heap, &buffer);
     cout << "Copy result: " <<  result.GetResultInformation() << endl;
 
     if (result.IsErr()) continue;
-
+    
     cout << "Number of scanners: " << scanners_.size() << endl;
     for (const auto& scanner : scanners_) {
       cout << " [" << scanner_count << "/" << total_scanners << "] Scanning with: " << scanner->GetName() << endl;
@@ -75,7 +79,9 @@ std::unordered_set<std::shared_ptr<Key>, Key::KeyHashFunction, Key::KeyHashFunct
     }
   }
 
-  printf("\n=======================\n");
+  printf("\n================================\n");
+  printf("Total heap size: 0x%X bytes", total_heap_size);
+  printf("\n================================\n");
   return keys_;
 }
 
