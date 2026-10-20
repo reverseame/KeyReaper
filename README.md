@@ -110,6 +110,20 @@ An example execution:
 PS C:\> .\KeyReaper_x86.exe scan -p 1717 -b ntpause -o "keys.json" --scanners crapi roundkey
 ```
 
+## Modifying the constants
+
+The constants used to XOR the keys can be modified if needed using the corresponding preprocessor macros.
+The macros can be found in `cryptoapi.h`.
+```c
+#if _WIN64
+#define RSAENH_CONSTANT 0xE35A172CD96214A0 
+#define DSSENH_CONSTANT 0xA2491D83D96214A0
+#elif _WIN32 
+#define RSAENH_CONSTANT 0xE35A172C
+#define DSSENH_CONSTANT 0xA2491D83
+#endif
+```
+
 ## Funding support
 Part of this research was supported by the Spanish National Cybersecurity Institute (INCIBE) under *Proyectos Estratégicos de Ciberseguridad -- CIBERSEGURIDAD EINA UNIZAR* and by the Recovery, Transformation and Resilience Plan funds, financed by the European Union (Next Generation).
 
